@@ -1,0 +1,32 @@
+{
+  "name": "@kava/kava-cli",
+  "version": "0.1.0",
+  "description": "Kava API scaffolding and extension installer CLI.",
+  "main": "dist/bin/kava.js",
+  "bin": {
+    "kava": "./dist/bin/kava.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node ./dist/bin/kava.js",
+    "check": "npm run build && node ./dist/bin/kava.js --help",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "aluna",
+    "cli",
+    "scaffold"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3"
+  }
+}
