@@ -31,7 +31,7 @@ export function pickUtility(utilityName: string): void {
   const projectRoot = findProjectRoot(process.cwd());
 
   if (!projectRoot) {
-    throw new Error("No package.json found. Run this command inside a Kava API project.");
+    throw new Error("No package.json found. Run this command inside a Skalfa API project.");
   }
 
   const utilsDir = path.join(projectRoot, "utils");
@@ -42,30 +42,30 @@ export function pickUtility(utilityName: string): void {
   }
 
   // 1. Tentukan path source dari node_modules dan target di lokal proyek
-  const corePackagePath = path.join(projectRoot, "node_modules", "@kava", "kava-api-core");
-  const sourceFile = path.join(corePackagePath, "src", `${utilityName}.util.ts`);
-  const targetFile = path.join(utilsDir, `${utilityName}.util.ts`);
+  const corePackagePath = path.join(projectRoot, "node_modules", "@skalfa", "skalfa-api-core");
+  const sourceDir = path.join(corePackagePath, "src", utilityName);
+  const targetDir = path.join(utilsDir, utilityName);
 
-  if (!exists(sourceFile)) {
-    throw new Error(`Source file for "${utilityName}" not found at ${sourceFile}. Make sure @kava/kava-api-core is installed.`);
+  if (!exists(sourceDir)) {
+    throw new Error(`Source folder for "${utilityName}" not found at ${sourceDir}. Make sure @skalfa/skalfa-api-core is installed.`);
   }
 
-  if (exists(targetFile)) {
-    throw new Error(`Utility "${utilityName}.util.ts" is already present in your local utils folder.`);
+  if (exists(targetDir)) {
+    throw new Error(`Utility folder "${utilityName}" is already present in your local utils folder.`);
   }
 
-  // 2. Salin file dari node_modules ke lokal proyek
-  console.log(`Copying ${utilityName}.util.ts from @kava/kava-api-core to utils/ ...`);
-  fs.copyFileSync(sourceFile, targetFile);
-  console.log(`✓ Copied ${utilityName}.util.ts`);
+  // 2. Salin folder dari node_modules ke lokal proyek secara rekursif
+  console.log(`Copying ${utilityName} folder from @skalfa/skalfa-api-core to utils/ ...`);
+  fs.cpSync(sourceDir, targetDir, { recursive: true });
+  console.log(`✓ Copied ${utilityName} folder`);
 
-  // 3. Perbarui utils/index.ts untuk mereferensikan file lokal
+  // 3. Perbarui utils/index.ts untuk mereferensikan folder lokal
   console.log("Updating utils/index.ts with explicit local export override ...");
   let indexContent = fs.readFileSync(indexPath, "utf8").trim();
 
-  const localExportLine = `export { ${utilitySymbols.join(", ")} } from "./${utilityName}.util";`;
+  const localExportLine = `export { ${utilitySymbols.join(", ")} } from "./${utilityName}";`;
 
-  if (!indexContent.includes(`./${utilityName}.util`)) {
+  if (!indexContent.includes(`./${utilityName}`)) {
     indexContent += `\n${localExportLine}\n`;
     fs.writeFileSync(indexPath, indexContent, "utf8");
     console.log("✓ Updated utils/index.ts with override.");
@@ -73,5 +73,5 @@ export function pickUtility(utilityName: string): void {
     console.log("⚠️ Info: Local export for this utility already exists in utils/index.ts");
   }
 
-  console.log(`\nSuccess! You can now customize: utils/${utilityName}.util.ts`);
+  console.log(`\nSuccess! You can now customize files under: utils/${utilityName}/`);
 }

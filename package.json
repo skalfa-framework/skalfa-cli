@@ -1,18 +1,18 @@
 {
-  "name": "@kava/kava-cli",
-  "version": "0.1.0",
-  "description": "Kava API scaffolding and extension installer CLI.",
-  "main": "dist/bin/kava.js",
+  "name": "@skalfa/skalfa-cli",
+  "version": "1.0.3",
+  "description": "Skalfa API scaffolding and extension installer CLI.",
+  "main": "dist/bin/skalfa.js",
   "bin": {
-    "kava": "./dist/bin/kava.js"
+    "skalfa": "./dist/bin/skalfa.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node ./dist/bin/kava.js",
-    "check": "npm run build && node ./dist/bin/kava.js --help",
+    "start": "node ./dist/bin/skalfa.js",
+    "check": "npm run build && node ./dist/bin/skalfa.js --help",
     "prepare": "npm run build"
   },
   "keywords": [

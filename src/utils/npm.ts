@@ -6,7 +6,7 @@ export function fetchLatestTarballUrl(packageName: string): Promise<string> {
     const encodedPackageName = packageName.replace("/", "%2f");
     const url = `https://registry.npmjs.org/${encodedPackageName}/latest`;
 
-    https.get(url, { headers: { "User-Agent": "kava-cli" } }, (res) => {
+    https.get(url, { headers: { "User-Agent": "skalfa-cli" } }, (res) => {
       if (res.statusCode !== 200) {
         reject(
           new Error(
@@ -43,7 +43,7 @@ export function fetchLatestTarballUrl(packageName: string): Promise<string> {
 export function downloadTarball(url: string, destPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
-    https.get(url, { headers: { "User-Agent": "kava-cli" } }, (res) => {
+    https.get(url, { headers: { "User-Agent": "skalfa-cli" } }, (res) => {
       if (res.statusCode !== 200) {
         file.close();
         fs.unlink(destPath, () => {});

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
 
 jobs:
   publish:
@@ -18,17 +19,22 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
       - name: Publish if version bumped
         run: |
           LOCAL_VER=$(node -p "require('./package.json').version")
-          NPM_VER=$(npm view @kava/kava-cli version 2>/dev/null || echo "0.0.0")
+          NPM_VER=$(npm view @skalfa/skalfa-cli version 2>/dev/null || echo "0.0.0")
           if [ "$LOCAL_VER" != "$NPM_VER" ]; then
-            echo "Publishing @kava/kava-cli $LOCAL_VER (Registry version: $NPM_VER)"
-            npm install
+            echo "Publishing @skalfa/skalfa-cli $LOCAL_VER (Registry version: $NPM_VER)"
+            bun install
             npm run build
             npm publish --access public
           else
-            echo "@kava/kava-cli is up to date ($LOCAL_VER)"
+            echo "@skalfa/skalfa-cli is up to date ($LOCAL_VER)"
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
