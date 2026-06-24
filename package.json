@@ -1,6 +1,6 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Skalfa API scaffolding and extension installer CLI.",
   "main": "dist/bin/skalfa.js",
   "bin": {

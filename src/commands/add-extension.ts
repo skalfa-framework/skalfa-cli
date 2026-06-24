@@ -14,7 +14,6 @@ export const extensions = {
   cron: "@skalfa/skalfa-cron",
   da: "@skalfa/skalfa-da",
   socket: "@skalfa/skalfa-socket",
-  notification: "@skalfa/notification",
   orm: "@skalfa/skalfa-orm"
 } as const;
 
