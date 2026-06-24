@@ -18,20 +18,85 @@ export const extensions = {
 } as const;
 
 export const extensionNames = Object.keys(extensions);
+export const frontendExtensions = ["idb", "socket", "document"];
 
 export async function addExtension(extensionName: string): Promise<void> {
+  const projectRoot = findProjectRoot(process.cwd());
+
+  if (!projectRoot) {
+    throw new Error("No package.json found. Run this command inside a Skalfa project.");
+  }
+
+  // Detect project type by checking package.json dependencies
+  const packageJsonPath = path.join(projectRoot, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  const isFrontend = pkg.dependencies && pkg.dependencies["next"];
+
+  if (isFrontend) {
+    if (!frontendExtensions.includes(extensionName)) {
+      throw new Error(
+        `Unknown frontend extension "${extensionName}". Available frontend extensions: ${frontendExtensions.join(", ")}`
+      );
+    }
+
+    const isDev = !!process.env["SKALFA_APP_TEMPLATE"];
+
+    if (extensionName === "idb") {
+      console.log("Installing Skalfa IndexedDB extension...");
+      installPackage(projectRoot, isDev ? "file:../skalfa-idb" : "@skalfa/skalfa-idb");
+      addTsconfigPath(path.join(projectRoot, "tsconfig.json"), "@skalfa/skalfa-idb");
+      addUtilExport(path.join(projectRoot, "utils", "index.ts"), "@skalfa/skalfa-idb");
+    } else if (extensionName === "socket") {
+      console.log("Installing Skalfa Socket.io client extension...");
+      installPackage(projectRoot, isDev ? "file:../skalfa-socket-client" : "@skalfa/skalfa-socket-client");
+      installPackage(projectRoot, "socket.io-client");
+      addTsconfigPath(path.join(projectRoot, "tsconfig.json"), "@skalfa/skalfa-socket-client");
+      addUtilExport(path.join(projectRoot, "utils", "index.ts"), "@skalfa/skalfa-socket-client");
+    } else if (extensionName === "document") {
+      console.log("Installing Skalfa Document export extension...");
+      installPackage(projectRoot, isDev ? "file:../skalfa-document" : "@skalfa/skalfa-document");
+      installPackage(projectRoot, "exceljs");
+      installPackage(projectRoot, "pdf-lib");
+      installPackage(projectRoot, "pdfjs-dist");
+      addTsconfigPath(path.join(projectRoot, "tsconfig.json"), "@skalfa/skalfa-document");
+      addUtilExport(path.join(projectRoot, "utils", "index.ts"), "@skalfa/skalfa-document");
+
+      // Copy public worker
+      console.log("Scaffolding pdf worker file...");
+      const { templateSource, cleanup } = await getAppTemplateSource(projectRoot);
+      try {
+        const workerSrc = path.join(templateSource, "public", "pdf.worker.min.mjs");
+        const workerDest = path.join(projectRoot, "public", "pdf.worker.min.mjs");
+        if (exists(workerSrc)) {
+          fs.mkdirSync(path.dirname(workerDest), { recursive: true });
+          fs.copyFileSync(workerSrc, workerDest);
+        }
+      } finally {
+        cleanup();
+      }
+
+      // Add exports back to components/base.components/index.ts to keep @components compatibility
+      const baseComponentsIndexPath = path.join(projectRoot, "components", "base.components", "index.ts");
+      if (fs.existsSync(baseComponentsIndexPath)) {
+        let content = fs.readFileSync(baseComponentsIndexPath, "utf8");
+        if (!content.includes("@skalfa/skalfa-document")) {
+          content += `\nexport * from "@skalfa/skalfa-document";\n`;
+          fs.writeFileSync(baseComponentsIndexPath, content, "utf8");
+        }
+      }
+    }
+
+    console.log(`✓ Frontend extension "${extensionName}" successfully installed and configured.`);
+    return;
+  }
+
+  // Backend scaffolding logic
   const packageName = extensions[extensionName as keyof typeof extensions];
 
   if (!packageName) {
     throw new Error(
-      `Unknown extension "${extensionName}". Available extensions: ${extensionNames.join(", ")}`
+      `Unknown backend extension "${extensionName}". Available extensions: ${extensionNames.join(", ")}`
     );
-  }
-
-  const projectRoot = findProjectRoot(process.cwd());
-
-  if (!projectRoot) {
-    throw new Error("No package.json found. Run this command inside a Skalfa API project.");
   }
 
   const isDev = !!process.env["SKALFA_API_TEMPLATE"];
@@ -84,7 +149,6 @@ async function getTemplateSource(projectRoot: string): Promise<{ templateSource:
     }
     return { templateSource, cleanup: () => {} };
   } else {
-    // Dynamic download from npm registry
     const templatePackageName = "@skalfa/skalfa-api";
     console.log(`Fetching latest template info for ${templatePackageName} from npm registry...`);
     const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
@@ -122,11 +186,59 @@ async function getTemplateSource(projectRoot: string): Promise<{ templateSource:
   }
 }
 
+async function getAppTemplateSource(projectRoot: string): Promise<{ templateSource: string; cleanup: () => void }> {
+  const envTemplateSource = process.env["SKALFA_APP_TEMPLATE"];
+  let tempExtractDir: string | null = null;
+  let templateSource = "";
+
+  if (envTemplateSource) {
+    templateSource = path.resolve(envTemplateSource);
+    if (!exists(templateSource)) {
+      throw new Error(`Template source override not found: ${templateSource}`);
+    }
+    return { templateSource, cleanup: () => {} };
+  } else {
+    const templatePackageName = "@skalfa/skalfa-app";
+    console.log(`Fetching latest template info for ${templatePackageName} from npm registry...`);
+    const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
+
+    const parentDir = path.dirname(projectRoot);
+    tempExtractDir = path.join(parentDir, `skalfa-app-temp-extract-${Date.now()}`);
+    fs.mkdirSync(tempExtractDir, { recursive: true });
+
+    const tarballPath = path.join(tempExtractDir, "template.tgz");
+    console.log("Downloading template tarball...");
+    await downloadTarball(tarballUrl, tarballPath);
+
+    console.log("Extracting template...");
+    try {
+      execSync(`tar -xzf "${tarballPath}" -C "${tempExtractDir}"`, { stdio: "ignore" });
+    } catch (err) {
+      fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      throw new Error(`Failed to extract template tarball. Please ensure 'tar' command is available: ${(err as Error).message}`);
+    }
+
+    templateSource = path.join(tempExtractDir, "package");
+    if (!exists(templateSource)) {
+      fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      throw new Error("Invalid template structure: 'package' folder not found inside tarball.");
+    }
+
+    return {
+      templateSource,
+      cleanup: () => {
+        if (tempExtractDir && exists(tempExtractDir)) {
+          fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        }
+      }
+    };
+  }
+}
+
 async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
   const { templateSource, cleanup } = await getTemplateSource(projectRoot);
 
   try {
-    // 1. Copy database/ folder and app/models/ folder from template
     console.log("Scaffolding database and model directories...");
     const dbSrc = path.join(templateSource, "database");
     const dbDest = path.join(projectRoot, "database");
@@ -140,7 +252,6 @@ async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
       copyTemplate(modelsSrc, modelsDest);
     }
 
-    // 2. Copy database-enabled UserController and AuthController from template
     console.log("Restoring database-enabled controllers...");
     const authControllerSrc = path.join(templateSource, "app", "controllers", "iam", "auth.controller.ts");
     const authControllerDest = path.join(projectRoot, "app", "controllers", "iam", "auth.controller.ts");
@@ -156,7 +267,6 @@ async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
       fs.copyFileSync(userControllerSrc, userControllerDest);
     }
 
-    // 3. Restore database CLI commands loader if missing
     console.log("Restoring database CLI commands...");
     const commandsSrc = path.join(templateSource, "utils", "commands");
     const commandsDest = path.join(projectRoot, "utils", "commands");
@@ -169,7 +279,6 @@ async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
       }
     }
 
-    // 4. Restore the database initialization block and imports in app/app.ts
     console.log("Restoring database initialization in app/app.ts...");
     const appTsSrc = path.join(templateSource, "app", "app.ts");
     const appTsDest = path.join(projectRoot, "app", "app.ts");
@@ -191,7 +300,6 @@ async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
       }
     }
 
-    // 5. Update tsconfig.json path mappings
     console.log("Updating tsconfig.json paths...");
     const tsconfigPath = path.join(projectRoot, "tsconfig.json");
     if (exists(tsconfigPath)) {
@@ -205,7 +313,6 @@ async function scaffoldOrmExtension(projectRoot: string): Promise<void> {
       }
     }
 
-    // 6. Update utils/index.ts exports
     console.log("Updating utils/index.ts exports...");
     const utilsIndexPath = path.join(projectRoot, "utils", "index.ts");
     if (exists(utilsIndexPath)) {
@@ -235,14 +342,12 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
     const utilsIndexPath = path.join(projectRoot, "utils", "index.ts");
     const appTsPath = path.join(projectRoot, "app", "app.ts");
 
-    // 1. Copy relevant template folders
     if (ext === "queue") {
       console.log("Copying Queue worker examples...");
       const src = path.join(templateSource, "app", "jobs", "queues");
       const dest = path.join(projectRoot, "app", "jobs", "queues");
       copyTemplate(src, dest);
 
-      // Check if project has DA or Notification packages
       const packageJsonPath = path.join(projectRoot, "package.json");
       let hasDa = false;
       let hasNotification = false;
@@ -270,26 +375,22 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
       copyTemplate(src, dest);
     }
 
-    // 2. Update tsconfig.json path mappings
     addTsconfigPath(tsconfigPath, `@skalfa/skalfa-${ext}`);
     if (ext === "queue" || ext === "cache") {
       addTsconfigPath(tsconfigPath, "@skalfa/skalfa-redis");
     }
 
-    // 3. Update utils/index.ts exports
     addUtilExport(utilsIndexPath, `@skalfa/skalfa-${ext}`);
     if (ext === "queue" || ext === "cache") {
       addUtilExport(utilsIndexPath, "@skalfa/skalfa-redis");
     }
 
-    // 4. Uncomment initialization blocks and update imports in app/app.ts
     if (fs.existsSync(appTsPath)) {
       let content = fs.readFileSync(appTsPath, "utf8");
       const importsToAdd: string[] = [];
 
       if (ext === "redis" || ext === "queue" || ext === "cache") {
         importsToAdd.push("redis");
-        // Uncomment Redis block
         content = content.replace(
           /\/\/ if \(process\.env\.REDIS_HOST[\s\S]*?\/\/ \}/g,
           (match) => match.replace(/^\/\/ ?/gm, "")
@@ -297,14 +398,12 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
       }
       if (ext === "da") {
         importsToAdd.push("daClient");
-        // Uncomment DA block
         content = content.replace(
           /\/\/ if \(process\.env\.DA_HOST[\s\S]*?\/\/ }/g,
           (match) => match.replace(/^\/\/ ?/gm, "")
         );
       }
 
-      // Update import statement at the top of app.ts
       if (importsToAdd.length > 0) {
         const importRegex = /import\s*\{\s*([\s\S]*?)\s*\}\s*from\s*["']@utils["']/;
         const match = content.match(importRegex);
@@ -319,7 +418,6 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
       fs.writeFileSync(appTsPath, content, "utf8");
     }
 
-    // 5. Update package.json scripts for workers
     const packageJsonPath = path.join(projectRoot, "package.json");
     if (fs.existsSync(packageJsonPath) && ["cron", "queue", "socket"].includes(ext)) {
       const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
@@ -341,7 +439,6 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
       if (scriptKey) {
         pkg.scripts[scriptKey] = scriptVal;
 
-        // Update dev concurrently command
         const devScript = pkg.scripts["dev"] || "";
         const runCmd = `bun ${scriptKey}`;
 

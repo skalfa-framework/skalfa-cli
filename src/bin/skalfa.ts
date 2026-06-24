@@ -6,12 +6,13 @@ import path from "node:path";
 import fs from "node:fs";
 import { addExtension, extensionNames } from "../commands/add-extension";
 import { createApi } from "../commands/create-api";
+import { createApp } from "../commands/create-app";
 import { pickUtility, UTILITIES } from "../commands/pick";
 import { findProjectRoot } from "../utils/fs";
 
 // Dynamic routing / forwarding logic
 const args = process.argv.slice(2);
-const knownCommands = ["create-api", "add", "pick"];
+const knownCommands = ["create-api", "create-app", "add", "pick"];
 
 if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v", "--version", "help"].includes(args[0])) {
   const projectRoot = findProjectRoot(process.cwd());
@@ -42,6 +43,14 @@ program
   .argument("<name>", "project folder and package name")
   .action(async (name: string) => {
     await runCommand(() => createApi(name));
+  });
+
+program
+  .command("create-app")
+  .description("Create a new Skalfa App Next.js project.")
+  .argument("<name>", "project folder and package name")
+  .action(async (name: string) => {
+    await runCommand(() => createApp(name));
   });
 
 program
