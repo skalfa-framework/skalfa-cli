@@ -14,9 +14,9 @@ This package is part of the **Skalfa Framework**, a premium development ecosyste
 
 ---
 
-## Dokumentasi
+## Documentation
 
-Lihat dokumentasi penggunaan [Dokumentasi](https://skalfa.sejedigital.com)
+See the usage documentation at [Documentation](https://skalfa.sejedigital.com).
 
 ---
 
