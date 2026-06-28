@@ -9,11 +9,12 @@ import { createApi } from "../commands/create-api";
 import { createApp } from "../commands/create-app";
 import { pickUtility, UTILITIES } from "../commands/pick";
 import { updateCli } from "../commands/update";
+import { installAgent, updateAgent } from "../commands/agent";
 import { findProjectRoot } from "../utils/fs";
 
 // Dynamic routing / forwarding logic
 const args = process.argv.slice(2);
-const knownCommands = ["create-api", "create-app", "add", "pick", "update"];
+const knownCommands = ["create:api", "create:app", "add", "pick", "update", "agent:install", "agent:update"];
 
 if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v", "--version", "help"].includes(args[0])) {
   const projectRoot = findProjectRoot(process.cwd());
@@ -59,7 +60,7 @@ program
   .addHelpText("before", banner);
 
 program
-  .command("create-api")
+  .command("create:api")
   .description("Create a new Skalfa API project.")
   .argument("<name>", "project folder and package name")
   .action(async (name: string) => {
@@ -67,7 +68,7 @@ program
   });
 
 program
-  .command("create-app")
+  .command("create:app")
   .description("Create a new Skalfa App Next.js project.")
   .argument("<name>", "project folder and package name")
   .action(async (name: string) => {
@@ -95,6 +96,21 @@ program
   .description("Update skalfa-cli to the latest version.")
   .action(async () => {
     await runCommand(() => updateCli());
+  });
+
+program
+  .command("agent:install")
+  .description("Install the corresponding AI coding agent (agent-api or agent-app) into the current project.")
+  .option("-t, --type <type>", "Override project type detection: api or app")
+  .action(async (options: { type?: string }) => {
+    await runCommand(() => installAgent(options.type));
+  });
+
+program
+  .command("agent:update")
+  .description("Update the installed AI coding agent to the latest version.")
+  .action(async () => {
+    await runCommand(() => updateAgent());
   });
 
 program.parse(process.argv);
