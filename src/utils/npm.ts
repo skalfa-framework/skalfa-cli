@@ -64,3 +64,43 @@ export function downloadTarball(url: string, destPath: string): Promise<void> {
     });
   });
 }
+
+export function fetchLatestVersion(packageName: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const encodedPackageName = packageName.replace("/", "%2f");
+    const url = `https://registry.npmjs.org/${encodedPackageName}/latest`;
+
+    https.get(url, { headers: { "User-Agent": "skalfa-cli" } }, (res) => {
+      if (res.statusCode !== 200) {
+        reject(
+          new Error(
+            `Failed to fetch latest version info for ${packageName} from npm registry. Status: ${res.statusCode} ${res.statusMessage}`
+          )
+        );
+        return;
+      }
+
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          const version = json.version;
+          if (!version) {
+            reject(new Error(`Could not find version in registry response for ${packageName}.`));
+            return;
+          }
+          resolve(version);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }).on("error", (err) => {
+      reject(new Error(`Network error while contacting npm registry: ${err.message}`));
+    });
+  });
+}
+

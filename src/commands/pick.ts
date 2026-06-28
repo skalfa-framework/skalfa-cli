@@ -57,6 +57,13 @@ export function pickUtility(utilityName: string): void {
   // 2. Salin folder dari node_modules ke lokal proyek secara rekursif
   console.log(`Copying ${utilityName} folder from @skalfa/skalfa-api-core to utils/ ...`);
   fs.cpSync(sourceDir, targetDir, { recursive: true });
+  const filesToDelete = ["CONTRIBUTING.md", "LICENSE"];
+  for (const file of filesToDelete) {
+    const filePath = path.join(targetDir, file);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  }
   console.log(`✓ Copied ${utilityName} folder`);
 
   // 3. Perbarui utils/index.ts untuk mereferensikan folder lokal

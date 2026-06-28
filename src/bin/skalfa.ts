@@ -8,11 +8,12 @@ import { addExtension, extensionNames } from "../commands/add-extension";
 import { createApi } from "../commands/create-api";
 import { createApp } from "../commands/create-app";
 import { pickUtility, UTILITIES } from "../commands/pick";
+import { updateCli } from "../commands/update";
 import { findProjectRoot } from "../utils/fs";
 
 // Dynamic routing / forwarding logic
 const args = process.argv.slice(2);
-const knownCommands = ["create-api", "create-app", "add", "pick"];
+const knownCommands = ["create-api", "create-app", "add", "pick", "update"];
 
 if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v", "--version", "help"].includes(args[0])) {
   const projectRoot = findProjectRoot(process.cwd());
@@ -30,12 +31,32 @@ if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v
   }
 }
 
+const packageJsonPath = path.join(__dirname, "..", "..", "package.json");
+let version = "1.0.0";
+try {
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  version = packageJson.version;
+} catch (e) {
+  // fallback if package.json is not found
+}
+
 const program = new Command();
+
+const banner = `
+############ WELCOME TO ###############
+  _____ _____ _____ __    _____ _____ 
+ |   __|  |  |  _  |  |  |   __|  _  |
+ |__   |    -|     |  |__|   __|     |
+ |_____|__|__|__|__|_____|__|  |__|__|
+
+#######################################
+`;
 
 program
   .name("skalfa")
-  .description("Create Skalfa API projects and install optional extensions.")
-  .version("0.1.0");
+  .description("Start building with skalfa ecosystem.")
+  .version(version)
+  .addHelpText("before", banner);
 
 program
   .command("create-api")
@@ -67,6 +88,13 @@ program
   .argument("<utility>", `utility name: ${UTILITIES.join(", ")}`)
   .action(async (utility: string) => {
     await runCommand(() => pickUtility(utility));
+  });
+
+program
+  .command("update")
+  .description("Update skalfa-cli to the latest version.")
+  .action(async () => {
+    await runCommand(() => updateCli());
   });
 
 program.parse(process.argv);

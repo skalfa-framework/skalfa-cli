@@ -3,7 +3,8 @@ import fs from "node:fs";
 import { execSync } from "node:child_process";
 import readline from "node:readline";
 import { fetchLatestTarballUrl, downloadTarball } from "../utils/npm";
-import { installDependencies } from "../utils/installer";
+import { installDependenciesAsync } from "../utils/installer";
+import { Spinner } from "../utils/spinner";
 import {
   assertInsideDirectory,
   exists,
@@ -25,10 +26,10 @@ class Questioner {
     });
   }
 
-  ask(query: string): Promise<string> {
+  ask(query: string, defaultValue = ""): Promise<string> {
     return new Promise((resolve) => {
       this.rl.question(query, (answer) => {
-        resolve(answer);
+        resolve(answer.trim() || defaultValue);
       });
     });
   }
@@ -59,12 +60,12 @@ export async function createApi(projectName: string): Promise<void> {
   let hasSocket = false;
 
   try {
-    hasRedis = (await q.ask("Do you need Redis? (y/N): ")).toLowerCase().startsWith("y");
-    hasQueue = (await q.ask("Do you need Queue? (y/N): ")).toLowerCase().startsWith("y");
-    hasCache = (await q.ask("Do you need Cache? (y/N): ")).toLowerCase().startsWith("y");
-    hasCron = (await q.ask("Do you need Cron? (y/N): ")).toLowerCase().startsWith("y");
-    hasDa = (await q.ask("Do you need Clickhouse Data Analytics? (y/N): ")).toLowerCase().startsWith("y");
-    hasSocket = (await q.ask("Do you need Socket.io? (y/N): ")).toLowerCase().startsWith("y");
+    hasRedis = (await q.ask("Do you need Redis? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasQueue = (await q.ask("Do you need Queue? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasCache = (await q.ask("Do you need Cache? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasCron = (await q.ask("Do you need Cron? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasDa = (await q.ask("Do you need Data Analytics? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasSocket = (await q.ask("Do you need Socket? (y/N): ", "No")).toLowerCase().startsWith("y");
   } finally {
     q.close();
   }
@@ -72,83 +73,98 @@ export async function createApi(projectName: string): Promise<void> {
   // Dependency relation: Queue or Cache requires Redis
   const finalRedis = hasRedis || hasQueue || hasCache;
 
-  const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
+  const spinner = new Spinner("Preparing project...");
+  spinner.start();
 
-  if (envTemplateSource) {
-    // Local copy mode (e.g. for development / override)
-    const templateSource = path.resolve(envTemplateSource);
-    console.log(`Creating Skalfa API project from local template override: ${templateSource}`);
-    if (!exists(templateSource)) {
-      throw new Error(`Template source override not found: ${templateSource}`);
-    }
-    copyTemplate(templateSource, target);
-  } else {
-    // Dynamic download from npm registry
-    const templatePackageName = "@skalfa/skalfa-api";
-    console.log(`Fetching latest template info for ${templatePackageName} from npm registry...`);
-    const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
+  try {
+    const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
 
-    // Create a temporary extraction directory inside parent folder of target
-    const parentDir = path.dirname(target);
-    const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
-    if (exists(tempExtractDir)) {
+    if (envTemplateSource) {
+      // Local copy mode (e.g. for development / override)
+      const templateSource = path.resolve(envTemplateSource);
+      spinner.update(`Copying template from ${templateSource}...`);
+      if (!exists(templateSource)) {
+        throw new Error(`Template source override not found: ${templateSource}`);
+      }
+      copyTemplate(templateSource, target);
+    } else {
+      // Dynamic download from npm registry
+      const templatePackageName = "@skalfa/skalfa-api";
+      spinner.update(`Fetching latest template info for ${templatePackageName}...`);
+      const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
+
+      // Create a temporary extraction directory inside parent folder of target
+      const parentDir = path.dirname(target);
+      const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
+      if (exists(tempExtractDir)) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(tempExtractDir, { recursive: true });
+
+      const tarballPath = path.join(tempExtractDir, "template.tgz");
+      spinner.update("Downloading template tarball...");
+      await downloadTarball(tarballUrl, tarballPath);
+
+      spinner.update("Extracting template...");
+      try {
+        execSync(`tar -xzf "${tarballPath}" -C "${tempExtractDir}"`, { stdio: "ignore" });
+      } catch (err) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        throw new Error(`Failed to extract template tarball. Please ensure 'tar' command is available: ${(err as Error).message}`);
+      }
+
+      const packageDir = path.join(tempExtractDir, "package");
+      if (!exists(packageDir)) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        throw new Error("Invalid template structure: 'package' folder not found inside tarball.");
+      }
+
+      // Rename/move extracted folder to target path
+      fs.renameSync(packageDir, target);
+
+      // Cleanup temp extract folder
       fs.rmSync(tempExtractDir, { recursive: true, force: true });
     }
-    fs.mkdirSync(tempExtractDir, { recursive: true });
 
-    const tarballPath = path.join(tempExtractDir, "template.tgz");
-    console.log("Downloading template tarball...");
-    await downloadTarball(tarballUrl, tarballPath);
+    spinner.update("Customizing project files...");
+    // Cleanup git and github directories if present and rename package
+    removeDirectory(path.join(target, ".git"));
+    removeDirectory(path.join(target, ".github"));
+    const filesToDelete = ["CONTRIBUTING.md", "LICENSE"];
+    for (const file of filesToDelete) {
+      const filePath = path.join(target, file);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    renamePackage(target, packageName);
 
-    console.log("Extracting template...");
-    try {
-      execSync(`tar -xzf "${tarballPath}" -C "${tempExtractDir}"`, { stdio: "ignore" });
-    } catch (err) {
-      fs.rmSync(tempExtractDir, { recursive: true, force: true });
-      throw new Error(`Failed to extract template tarball. Please ensure 'tar' command is available: ${(err as Error).message}`);
+    // Rename .npmignore to .gitignore if it exists (npm renames .gitignore to .npmignore during pack/publish)
+    const npmignorePath = path.join(target, ".npmignore");
+    const gitignorePath = path.join(target, ".gitignore");
+    if (fs.existsSync(npmignorePath) && !fs.existsSync(gitignorePath)) {
+      fs.renameSync(npmignorePath, gitignorePath);
     }
 
-    const packageDir = path.join(tempExtractDir, "package");
-    if (!exists(packageDir)) {
-      fs.rmSync(tempExtractDir, { recursive: true, force: true });
-      throw new Error("Invalid template structure: 'package' folder not found inside tarball.");
-    }
+    // Customize project with selected options
+    customizeProject(target, {
+      redis: finalRedis,
+      queue: hasQueue,
+      cache: hasCache,
+      cron: hasCron,
+      da: hasDa,
+      socket: hasSocket
+    });
+    
+    spinner.update("Installing dependencies (this may take a moment)...");
+    await installDependenciesAsync(target);
 
-    // Rename/move extracted folder to target path
-    fs.renameSync(packageDir, target);
-
-    // Cleanup temp extract folder
-    fs.rmSync(tempExtractDir, { recursive: true, force: true });
+    spinner.stop(true, "Skalfa API project is ready.");
+    console.log(`\nNext steps:\n  cd ${projectName}\n  bun run dev`);
+  } catch (error) {
+    spinner.stop(false, `Failed to prepare project: ${(error as Error).message}`);
+    throw error;
   }
-
-  // Cleanup git and github directories if present and rename package
-  removeDirectory(path.join(target, ".git"));
-  removeDirectory(path.join(target, ".github"));
-  renamePackage(target, packageName);
-
-  // Rename .npmignore to .gitignore if it exists (npm renames .gitignore to .npmignore during pack/publish)
-  const npmignorePath = path.join(target, ".npmignore");
-  const gitignorePath = path.join(target, ".gitignore");
-  if (fs.existsSync(npmignorePath) && !fs.existsSync(gitignorePath)) {
-    fs.renameSync(npmignorePath, gitignorePath);
-  }
-
-  // Customize project with selected options
-  customizeProject(target, {
-    redis: finalRedis,
-    queue: hasQueue,
-    cache: hasCache,
-    cron: hasCron,
-    da: hasDa,
-    socket: hasSocket
-  });
-  
-  console.log("Installing dependencies...");
-  installDependencies(target);
-
-  console.log("");
-  console.log("✓ Skalfa API project is ready.");
-  console.log(`Next steps:\n  cd ${projectName}\n  bun run dev`);
 }
 
 export function renamePackage(target: string, packageName: string): void {

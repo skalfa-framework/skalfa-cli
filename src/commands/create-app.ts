@@ -3,7 +3,8 @@ import fs from "node:fs";
 import { execSync } from "node:child_process";
 import readline from "node:readline";
 import { fetchLatestTarballUrl, downloadTarball } from "../utils/npm";
-import { installDependencies } from "../utils/installer";
+import { installDependenciesAsync } from "../utils/installer";
+import { Spinner } from "../utils/spinner";
 import {
   assertInsideDirectory,
   exists,
@@ -25,10 +26,10 @@ class Questioner {
     });
   }
 
-  ask(query: string): Promise<string> {
+  ask(query: string, defaultValue = ""): Promise<string> {
     return new Promise((resolve) => {
       this.rl.question(query, (answer) => {
-        resolve(answer);
+        resolve(answer.trim() || defaultValue);
       });
     });
   }
@@ -59,89 +60,104 @@ export async function createApp(projectName: string): Promise<void> {
   let hasTauriMobile = false;
 
   try {
-    hasIdb = (await q.ask("Do you need IndexedDB (IDB)? (y/N): ")).toLowerCase().startsWith("y");
-    hasSocket = (await q.ask("Do you need Socket.io Client? (y/N): ")).toLowerCase().startsWith("y");
-    hasDocument = (await q.ask("Do you need Document Export/Viewer (PDF/Excel)? (y/N): ")).toLowerCase().startsWith("y");
-    hasPwa = (await q.ask("Do you want to enable Progressive Web App (PWA)? (y/N): ")).toLowerCase().startsWith("y");
-    hasTauriDesktop = (await q.ask("Do you want to enable Tauri Desktop support (Windows/macOS/Linux)? (y/N): ")).toLowerCase().startsWith("y");
-    hasTauriMobile = (await q.ask("Do you want to enable Tauri Mobile support (Android/iOS)? (y/N): ")).toLowerCase().startsWith("y");
+    hasIdb = (await q.ask("Do you need IndexedDB (IDB)? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasSocket = (await q.ask("Do you need Socket Client? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasDocument = (await q.ask("Do you need Document Export/Viewer (PDF/Excel)? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasPwa = (await q.ask("Do you want to enable Progressive Web App (PWA)? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasTauriDesktop = (await q.ask("Do you want to enable Tauri Desktop support (Windows/macOS/Linux)? (y/N): ", "No")).toLowerCase().startsWith("y");
+    hasTauriMobile = (await q.ask("Do you want to enable Tauri Mobile support (Android/iOS)? (y/N): ", "No")).toLowerCase().startsWith("y");
   } finally {
     q.close();
   }
 
-  const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
+  const spinner = new Spinner("Preparing project...");
+  spinner.start();
 
-  if (envTemplateSource) {
-    // Local copy mode
-    const templateSource = path.resolve(envTemplateSource);
-    console.log(`Creating Skalfa App project from local template override: ${templateSource}`);
-    if (!exists(templateSource)) {
-      throw new Error(`Template source override not found: ${templateSource}`);
-    }
-    copyTemplate(templateSource, target);
-  } else {
-    // Dynamic download from npm registry
-    const templatePackageName = "@skalfa/skalfa-app";
-    console.log(`Fetching latest template info for ${templatePackageName} from npm registry...`);
-    const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
+  try {
+    const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
 
-    const parentDir = path.dirname(target);
-    const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
-    if (exists(tempExtractDir)) {
+    if (envTemplateSource) {
+      // Local copy mode
+      const templateSource = path.resolve(envTemplateSource);
+      spinner.update(`Copying template from ${templateSource}...`);
+      if (!exists(templateSource)) {
+        throw new Error(`Template source override not found: ${templateSource}`);
+      }
+      copyTemplate(templateSource, target);
+    } else {
+      // Dynamic download from npm registry
+      const templatePackageName = "@skalfa/skalfa-app";
+      spinner.update(`Fetching latest template info for ${templatePackageName}...`);
+      const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
+
+      const parentDir = path.dirname(target);
+      const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
+      if (exists(tempExtractDir)) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(tempExtractDir, { recursive: true });
+
+      const tarballPath = path.join(tempExtractDir, "template.tgz");
+      spinner.update("Downloading template tarball...");
+      await downloadTarball(tarballUrl, tarballPath);
+
+      spinner.update("Extracting template...");
+      try {
+        execSync(`tar -xzf "${tarballPath}" -C "${tempExtractDir}"`, { stdio: "ignore" });
+      } catch (err) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        throw new Error(`Failed to extract template tarball. Please ensure 'tar' command is available: ${(err as Error).message}`);
+      }
+
+      const packageDir = path.join(tempExtractDir, "package");
+      if (!exists(packageDir)) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true });
+        throw new Error("Invalid template structure: 'package' folder not found inside tarball.");
+      }
+
+      fs.renameSync(packageDir, target);
       fs.rmSync(tempExtractDir, { recursive: true, force: true });
     }
-    fs.mkdirSync(tempExtractDir, { recursive: true });
 
-    const tarballPath = path.join(tempExtractDir, "template.tgz");
-    console.log("Downloading template tarball...");
-    await downloadTarball(tarballUrl, tarballPath);
+    spinner.update("Customizing project files...");
+    // Cleanup git and github directories
+    removeDirectory(path.join(target, ".git"));
+    removeDirectory(path.join(target, ".github"));
+    const filesToDelete = ["CONTRIBUTING.md", "LICENSE"];
+    for (const file of filesToDelete) {
+      const filePath = path.join(target, file);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    renamePackage(target, packageName);
 
-    console.log("Extracting template...");
-    try {
-      execSync(`tar -xzf "${tarballPath}" -C "${tempExtractDir}"`, { stdio: "ignore" });
-    } catch (err) {
-      fs.rmSync(tempExtractDir, { recursive: true, force: true });
-      throw new Error(`Failed to extract template tarball. Please ensure 'tar' command is available: ${(err as Error).message}`);
+    // Rename .npmignore to .gitignore if it exists
+    const npmignorePath = path.join(target, ".npmignore");
+    const gitignorePath = path.join(target, ".gitignore");
+    if (fs.existsSync(npmignorePath) && !fs.existsSync(gitignorePath)) {
+      fs.renameSync(npmignorePath, gitignorePath);
     }
 
-    const packageDir = path.join(tempExtractDir, "package");
-    if (!exists(packageDir)) {
-      fs.rmSync(tempExtractDir, { recursive: true, force: true });
-      throw new Error("Invalid template structure: 'package' folder not found inside tarball.");
-    }
+    // Customize project with selected options
+    customizeProject(target, {
+      idb: hasIdb,
+      socket: hasSocket,
+      document: hasDocument,
+      pwa: hasPwa,
+      tauriDesktop: hasTauriDesktop,
+      tauriMobile: hasTauriMobile
+    });
+    
+    spinner.update("Installing dependencies (this may take a moment)...");
+    await installDependenciesAsync(target);
 
-    fs.renameSync(packageDir, target);
-    fs.rmSync(tempExtractDir, { recursive: true, force: true });
+    spinner.stop(true, "Skalfa App Next.js project is ready.");
+    console.log(`\nNext steps:\n  cd ${projectName}\n  bun run dev`);
+  } catch (error) {
+    spinner.stop(false, `Failed to prepare project: ${(error as Error).message}`);
+    throw error;
   }
-
-  // Cleanup git and github directories
-  removeDirectory(path.join(target, ".git"));
-  removeDirectory(path.join(target, ".github"));
-  renamePackage(target, packageName);
-
-  // Rename .npmignore to .gitignore if it exists
-  const npmignorePath = path.join(target, ".npmignore");
-  const gitignorePath = path.join(target, ".gitignore");
-  if (fs.existsSync(npmignorePath) && !fs.existsSync(gitignorePath)) {
-    fs.renameSync(npmignorePath, gitignorePath);
-  }
-
-  // Customize project with selected options
-  customizeProject(target, {
-    idb: hasIdb,
-    socket: hasSocket,
-    document: hasDocument,
-    pwa: hasPwa,
-    tauriDesktop: hasTauriDesktop,
-    tauriMobile: hasTauriMobile
-  });
-  
-  console.log("Installing dependencies...");
-  installDependencies(target);
-
-  console.log("");
-  console.log("✓ Skalfa App Next.js project is ready.");
-  console.log(`Next steps:\n  cd ${projectName}\n  bun run dev`);
 }
 
 function renamePackage(target: string, packageName: string): void {
