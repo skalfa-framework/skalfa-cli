@@ -1,6 +1,6 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Command Line Interface tool for scaffolding Skalfa projects, managing extensions, and ejecting core utilities.",
   "main": "dist/bin/skalfa.js",
   "bin": {
