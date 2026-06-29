@@ -39,7 +39,16 @@ class Questioner {
   }
 }
 
-export async function createApp(projectName: string): Promise<void> {
+export interface CreateAppOptions {
+  idb?: boolean;
+  socket?: boolean;
+  document?: boolean;
+  pwa?: boolean;
+  tauriDesktop?: boolean;
+  tauriMobile?: boolean;
+}
+
+export async function createApp(projectName: string, options?: CreateAppOptions): Promise<void> {
   const cwd = process.cwd();
   const target = path.resolve(cwd, projectName);
   const packageName = path.basename(target);
@@ -50,24 +59,26 @@ export async function createApp(projectName: string): Promise<void> {
     throw new Error(`Target directory already exists: ${target}`);
   }
 
-  // Ask interactive questions sequentially
-  const q = new Questioner();
-  let hasIdb = false;
-  let hasSocket = false;
-  let hasDocument = false;
-  let hasPwa = false;
-  let hasTauriDesktop = false;
-  let hasTauriMobile = false;
+  let hasIdb = options?.idb ?? false;
+  let hasSocket = options?.socket ?? false;
+  let hasDocument = options?.document ?? false;
+  let hasPwa = options?.pwa ?? false;
+  let hasTauriDesktop = options?.tauriDesktop ?? false;
+  let hasTauriMobile = options?.tauriMobile ?? false;
 
-  try {
-    hasIdb = (await q.ask("Do you need IndexedDB (IDB)? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasSocket = (await q.ask("Do you need Socket Client? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasDocument = (await q.ask("Do you need Document Export/Viewer (PDF/Excel)? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasPwa = (await q.ask("Do you want to enable Progressive Web App (PWA)? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasTauriDesktop = (await q.ask("Do you want to enable Tauri Desktop support (Windows/macOS/Linux)? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasTauriMobile = (await q.ask("Do you want to enable Tauri Mobile support (Android/iOS)? (y/N): ", "No")).toLowerCase().startsWith("y");
-  } finally {
-    q.close();
+  if (!options) {
+    // Ask interactive questions sequentially
+    const q = new Questioner();
+    try {
+      hasIdb = (await q.ask("Do you need IndexedDB (IDB)? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasSocket = (await q.ask("Do you need Socket Client? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasDocument = (await q.ask("Do you need Document Export/Viewer (PDF/Excel)? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasPwa = (await q.ask("Do you want to enable Progressive Web App (PWA)? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasTauriDesktop = (await q.ask("Do you want to enable Tauri Desktop support (Windows/macOS/Linux)? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasTauriMobile = (await q.ask("Do you want to enable Tauri Mobile support (Android/iOS)? (y/N): ", "No")).toLowerCase().startsWith("y");
+    } finally {
+      q.close();
+    }
   }
 
   const spinner = new Spinner("Preparing project...");
@@ -91,7 +102,7 @@ export async function createApp(projectName: string): Promise<void> {
       const tarballUrl = await fetchLatestTarballUrl(templatePackageName);
 
       const parentDir = path.dirname(target);
-      const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
+      const tempExtractDir = path.join(parentDir, `${packageName}-temp-extract`);
       if (exists(tempExtractDir)) {
         fs.rmSync(tempExtractDir, { recursive: true, force: true });
       }
@@ -131,6 +142,51 @@ export async function createApp(projectName: string): Promise<void> {
       }
     }
     renamePackage(target, packageName);
+
+    // Write template README.md file
+    const readmePath = path.join(target, "README.md");
+    const readmeContent = `# [Project Name] - Frontend Application
+
+## Overview
+- **Description:** [Provide a short description of this project]
+- **What it does:** [Briefly explain what this project does]
+- **Why it exists:** [Explain why this project was created]
+- **Main Goals:** [List the main goals of this application]
+- **Target Users:** [Specify the target users of this application]
+
+## Skalfa Stack
+This frontend application is built on top of **@skalfa/skalfa-app** with the following configured utilities:
+- **Core:** \\\`@skalfa/skalfa-app-core\\\`
+- **IndexedDB Storage:** \`${hasIdb ? "Enabled (@skalfa/skalfa-idb)" : "Disabled"}\`
+- **Socket Client:** \`${hasSocket ? "Enabled (@skalfa/skalfa-socket-client)" : "Disabled"}\`
+- **Document Export:** \`${hasDocument ? "Enabled (@skalfa/skalfa-document)" : "Disabled"}\`
+- **PWA Support:** \`${hasPwa ? "Enabled (@ducanh2912/next-pwa)" : "Disabled"}\`
+- **Tauri Support:** \`${hasTauriDesktop || hasTauriMobile ? `Enabled (@tauri-apps/api) - ${[hasTauriDesktop ? "Desktop" : "", hasTauriMobile ? "Mobile" : ""].filter(Boolean).join("/")}` : "Disabled"}\`
+
+## Features & Status
+Here is the list of features and their development status:
+
+| Feature | Description | Status |
+| :--- | :--- | :---: |
+| **Login** | Login pages | \\\`[x] Completed\\\` |
+
+## Development Setup
+
+### Prerequisites
+Make sure you have [Bun](https://bun.sh) or [Node.js](https://nodejs.org) installed.
+
+### Commands
+| Task | Bun | npm |
+| :--- | :--- | :--- |
+| **Install Dependencies** | \\\`bun install\\\` | \\\`npm install\\\` |
+| **Start Dev Server** | \\\`bun run dev\\\` | \\\`npm run dev\\\` |
+| **Build Production** | \\\`bun run build\\\` | \\\`npm run build\\\` |
+| **Start Production** | \\\`bun run start\\\` | \\\`npm run start\\\` |
+
+## Agent Instructions
+If you are an AI coding agent assisting with this project, please make sure to read the workspace instructions and guidelines located in the [App Agent Rules](file:///.agents/AGENTS.md) or the root monorepo [Agent Rules](file:///../.agents/AGENTS.md) folder before making modifications.
+`;
+    fs.writeFileSync(readmePath, readmeContent, "utf8");
 
     // Rename .npmignore to .gitignore if it exists
     const npmignorePath = path.join(target, ".npmignore");

@@ -2,12 +2,12 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 
-export async function installAgent(overrideType?: string): Promise<void> {
+export async function installAgent(overrideType?: string, targetProjectDir: string = process.cwd()): Promise<void> {
   let type = overrideType;
 
   // 1. Auto-detect project type if not overridden
   if (!type) {
-    const pkgPath = path.join(process.cwd(), "package.json");
+    const pkgPath = path.join(targetProjectDir, "package.json");
     if (!fs.existsSync(pkgPath)) {
       throw new Error("package.json not found. Please run this command in your project root.");
     }
@@ -35,7 +35,7 @@ export async function installAgent(overrideType?: string): Promise<void> {
     throw new Error("Invalid agent type. Must be 'api' or 'app'.");
   }
 
-  const targetDir = path.join(process.cwd(), ".agents");
+  const targetDir = path.join(targetProjectDir, ".agents");
   if (fs.existsSync(targetDir)) {
     throw new Error(".agents folder already exists. Run 'skalfa agent:update' to pull the latest changes.");
   }
@@ -72,7 +72,7 @@ export async function installAgent(overrideType?: string): Promise<void> {
   }
 
   // 3. Add /.agents/ to project's .gitignore
-  const gitignorePath = path.join(process.cwd(), ".gitignore");
+  const gitignorePath = path.join(targetProjectDir, ".gitignore");
   let gitignoreContent = "";
   if (fs.existsSync(gitignorePath)) {
     gitignoreContent = fs.readFileSync(gitignorePath, "utf8");
@@ -90,6 +90,30 @@ export async function installAgent(overrideType?: string): Promise<void> {
 export async function updateAgent(): Promise<void> {
   const targetDir = path.join(process.cwd(), ".agents");
   if (!fs.existsSync(targetDir)) {
+    // Check if it's a monorepo
+    const apiAgentDir = path.join(process.cwd(), "api", ".agents");
+    const appAgentDir = path.join(process.cwd(), "app", ".agents");
+    if (fs.existsSync(apiAgentDir) || fs.existsSync(appAgentDir)) {
+      if (fs.existsSync(apiAgentDir)) {
+        console.log("Updating API agent...");
+        try {
+          execSync("git pull", { cwd: apiAgentDir, stdio: "inherit" });
+          console.log("API Agent updated successfully!");
+        } catch (e: any) {
+          console.error(`Failed to update API agent: ${e.message}`);
+        }
+      }
+      if (fs.existsSync(appAgentDir)) {
+        console.log("Updating APP agent...");
+        try {
+          execSync("git pull", { cwd: appAgentDir, stdio: "inherit" });
+          console.log("APP Agent updated successfully!");
+        } catch (e: any) {
+          console.error(`Failed to update APP agent: ${e.message}`);
+        }
+      }
+      return;
+    }
     throw new Error("No agent installed in this project. Run 'skalfa agent:install' first.");
   }
 

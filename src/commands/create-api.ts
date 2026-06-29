@@ -39,7 +39,16 @@ class Questioner {
   }
 }
 
-export async function createApi(projectName: string): Promise<void> {
+export interface CreateApiOptions {
+  redis?: boolean;
+  queue?: boolean;
+  cache?: boolean;
+  cron?: boolean;
+  da?: boolean;
+  socket?: boolean;
+}
+
+export async function createApi(projectName: string, options?: CreateApiOptions): Promise<void> {
   const cwd = process.cwd();
   const target = path.resolve(cwd, projectName);
   const packageName = path.basename(target);
@@ -50,24 +59,26 @@ export async function createApi(projectName: string): Promise<void> {
     throw new Error(`Target directory already exists: ${target}`);
   }
 
-  // Ask interactive questions sequentially using a single readline interface
-  const q = new Questioner();
-  let hasRedis = false;
-  let hasQueue = false;
-  let hasCache = false;
-  let hasCron = false;
-  let hasDa = false;
-  let hasSocket = false;
+  let hasRedis = options?.redis ?? false;
+  let hasQueue = options?.queue ?? false;
+  let hasCache = options?.cache ?? false;
+  let hasCron = options?.cron ?? false;
+  let hasDa = options?.da ?? false;
+  let hasSocket = options?.socket ?? false;
 
-  try {
-    hasRedis = (await q.ask("Do you need Redis? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasQueue = (await q.ask("Do you need Queue? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasCache = (await q.ask("Do you need Cache? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasCron = (await q.ask("Do you need Cron? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasDa = (await q.ask("Do you need Data Analytics? (y/N): ", "No")).toLowerCase().startsWith("y");
-    hasSocket = (await q.ask("Do you need Socket? (y/N): ", "No")).toLowerCase().startsWith("y");
-  } finally {
-    q.close();
+  if (!options) {
+    // Ask interactive questions sequentially using a single readline interface
+    const q = new Questioner();
+    try {
+      hasRedis = (await q.ask("Do you need Redis? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasQueue = (await q.ask("Do you need Queue? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasCache = (await q.ask("Do you need Cache? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasCron = (await q.ask("Do you need Cron? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasDa = (await q.ask("Do you need Data Analytics? (y/N): ", "No")).toLowerCase().startsWith("y");
+      hasSocket = (await q.ask("Do you need Socket? (y/N): ", "No")).toLowerCase().startsWith("y");
+    } finally {
+      q.close();
+    }
   }
 
   // Dependency relation: Queue or Cache requires Redis
@@ -95,7 +106,7 @@ export async function createApi(projectName: string): Promise<void> {
 
       // Create a temporary extraction directory inside parent folder of target
       const parentDir = path.dirname(target);
-      const tempExtractDir = path.join(parentDir, `${projectName}-temp-extract`);
+      const tempExtractDir = path.join(parentDir, `${packageName}-temp-extract`);
       if (exists(tempExtractDir)) {
         fs.rmSync(tempExtractDir, { recursive: true, force: true });
       }
@@ -138,6 +149,53 @@ export async function createApi(projectName: string): Promise<void> {
       }
     }
     renamePackage(target, packageName);
+
+    // Write template README.md file
+    const readmePath = path.join(target, "README.md");
+    const readmeContent = `# [Project Name] - Backend Service
+
+## Overview
+- **Description:** [Provide a short description of this project]
+- **What it does:** [Briefly explain what this project does]
+- **Why it exists:** [Explain why this project was created]
+- **Main Goals:** [List the main goals of this service]
+- **Target Users:** [Specify the target users/consumers of this service]
+
+## Skalfa Stack
+This backend service is built on top of **@skalfa/skalfa-api** with the following configured utilities:
+- **Core:** \\\`@skalfa/skalfa-api-core\\\`
+- **Database / ORM:** \\\`@skalfa/skalfa-orm\\\` (Knex)
+- **Redis Connection:** \`${finalRedis ? "Enabled (@skalfa/skalfa-redis)" : "Disabled"}\`
+- **Queue Worker:** \`${hasQueue ? "Enabled (@skalfa/skalfa-queue)" : "Disabled"}\`
+- **Cache Manager:** \`${hasCache ? "Enabled (@skalfa/skalfa-cache)" : "Disabled"}\`
+- **Cron Scheduler:** \`${hasCron ? "Enabled (@skalfa/skalfa-cron)" : "Disabled"}\`
+- **Data Analytics:** \`${hasDa ? "Enabled (@skalfa/skalfa-da / ClickHouse)" : "Disabled"}\`
+- **WebSocket Server:** \`${hasSocket ? "Enabled (@skalfa/skalfa-socket)" : "Disabled"}\`
+
+## Features & Status
+Here is the list of features and their development status:
+
+| Feature | Description | Status |
+| :--- | :--- | :---: |
+| **Login** | API Login | \\\`[x] Completed\\\` |
+
+## Development Setup
+
+### Prerequisites
+Ensure you have [Bun](https://bun.sh) or [Node.js](https://nodejs.org) installed.
+
+### Commands
+| Task | Bun | npm |
+| :--- | :--- | :--- |
+| **Install Dependencies** | \\\`bun install\\\` | \\\`npm install\\\` |
+| **Start Dev Server** | \\\`bun run dev\\\` | \\\`npm run dev\\\` |
+| **Build Production** | \\\`bun run build\\\` | \\\`npm run build\\\` |
+| **Start Production** | \\\`bun run start\\\` | \\\`npm run start\\\` |
+
+## Agent Instructions
+If you are an AI coding agent assisting with this project, please make sure to read the workspace instructions and guidelines located in the [API Agent Rules](file:///.agents/AGENTS.md) or the root monorepo [Agent Rules](file:///../.agents/AGENTS.md) folder before making modifications.
+`;
+    fs.writeFileSync(readmePath, readmeContent, "utf8");
 
     // Rename .npmignore to .gitignore if it exists (npm renames .gitignore to .npmignore during pack/publish)
     const npmignorePath = path.join(target, ".npmignore");

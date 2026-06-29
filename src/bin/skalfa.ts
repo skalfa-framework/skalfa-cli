@@ -7,6 +7,7 @@ import fs from "node:fs";
 import { addExtension, extensionNames } from "../commands/add-extension";
 import { createApi } from "../commands/create-api";
 import { createApp } from "../commands/create-app";
+import { initProject } from "../commands/init";
 import { pickUtility, UTILITIES } from "../commands/pick";
 import { updateCli } from "../commands/update";
 import { installAgent, updateAgent } from "../commands/agent";
@@ -14,7 +15,7 @@ import { findProjectRoot } from "../utils/fs";
 
 // Dynamic routing / forwarding logic
 const args = process.argv.slice(2);
-const knownCommands = ["create:api", "create:app", "add", "pick", "update", "agent:install", "agent:update"];
+const knownCommands = ["init", "create:api", "create:app", "add", "pick", "update", "agent:install", "agent:update"];
 
 if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v", "--version", "help"].includes(args[0])) {
   const projectRoot = findProjectRoot(process.cwd());
@@ -58,6 +59,14 @@ program
   .description("Start building with skalfa ecosystem.")
   .version(version)
   .addHelpText("before", banner);
+
+program
+  .command("init")
+  .description("Initialize a new Skalfa monorepo project containing both API and App.")
+  .argument("<name>", "project folder name")
+  .action(async (name: string) => {
+    await runCommand(() => initProject(name));
+  });
 
 program
   .command("create:api")
