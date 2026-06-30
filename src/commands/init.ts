@@ -29,14 +29,22 @@ class Questioner {
   }
 }
 
-export async function initProject(projectName: string): Promise<void> {
+export async function initProject(projectName?: string): Promise<void> {
   const cwd = process.cwd();
-  const target = path.resolve(cwd, projectName);
+  const isCurrentDir = !projectName || projectName === ".";
+  const target = isCurrentDir ? cwd : path.resolve(cwd, projectName);
+  const resolvedProjectName = isCurrentDir ? (path.basename(cwd) || "skalfa-project") : projectName;
 
   assertInsideDirectory(cwd, target);
 
-  if (exists(target)) {
-    throw new Error(`Target directory already exists: ${target}`);
+  if (isCurrentDir) {
+    if (exists(path.join(target, "api")) || exists(path.join(target, "app")) || exists(path.join(target, "package.json"))) {
+      throw new Error(`Current directory already contains conflicting files/folders (api, app, or package.json).`);
+    }
+  } else {
+    if (exists(target)) {
+      throw new Error(`Target directory already exists: ${target}`);
+    }
   }
 
   // Ask interactive questions sequentially
@@ -121,7 +129,7 @@ export async function initProject(projectName: string): Promise<void> {
   
   // 1. Root package.json
   const rootPackageJson = {
-    name: projectName,
+    name: resolvedProjectName,
     private: true,
     workspaces: [
       "api",
@@ -141,7 +149,7 @@ export async function initProject(projectName: string): Promise<void> {
   fs.writeFileSync(path.join(target, ".gitignore"), rootGitignore, "utf8");
 
   // 3. Root README.md
-  const rootReadme = `# ${projectName}
+  const rootReadme = `# ${resolvedProjectName}
 
 This is a Skalfa monorepo project containing both the backend (API) and the frontend (App).
 
@@ -195,6 +203,10 @@ This is a combined Skalfa project containing both the backend (\`api\`) and fron
 `;
   fs.writeFileSync(path.join(agentsDir, "AGENTS.md"), agentsMd, "utf8");
 
-  console.log(`\nSuccessfully initialized ${projectName}!`);
-  console.log(`\nNext steps:\n  cd ${projectName}\n  bun install\n  bun run --cwd api dev (or cd api && bun run dev)\n  bun run --cwd app dev (or cd app && bun run dev)`);
+  console.log(`\nSuccessfully initialized ${resolvedProjectName}!`);
+  if (isCurrentDir) {
+    console.log(`\nNext steps:\n  bun install\n  bun run --cwd api dev (or cd api && bun run dev)\n  bun run --cwd app dev (or cd app && bun run dev)`);
+  } else {
+    console.log(`\nNext steps:\n  cd ${projectName}\n  bun install\n  bun run --cwd api dev (or cd api && bun run dev)\n  bun run --cwd app dev (or cd app && bun run dev)`);
+  }
 }

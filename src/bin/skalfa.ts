@@ -63,8 +63,8 @@ program
 program
   .command("init")
   .description("Initialize a new Skalfa monorepo project containing both API and App.")
-  .argument("<name>", "project folder name")
-  .action(async (name: string) => {
+  .argument("[name]", "project folder name")
+  .action(async (name?: string) => {
     await runCommand(() => initProject(name));
   });
 
