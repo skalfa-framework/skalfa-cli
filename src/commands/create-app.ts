@@ -242,6 +242,12 @@ interface CustomizationOptions {
   tauriDesktop: boolean;
   tauriMobile: boolean;
   authType: "username" | "email";
+  versions?: {
+    appCore: string;
+    component: string;
+    idb: string;
+    document: string;
+  };
 }
 
 function customizeProject(target: string, opts: CustomizationOptions): void {
@@ -258,15 +264,17 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     pkg.devDependencies = pkg.devDependencies || {};
     pkg.scripts = pkg.scripts || {};
 
+    const v = opts.versions;
+
     // Core dependency
-    pkg.dependencies["@skalfa/skalfa-app-core"] = isDev ? `${devPathPrefix}skalfa-app-core` : "^1.0.0";
-    if (isDev && pkg.dependencies["@skalfa/skalfa-component"]) {
-      pkg.dependencies["@skalfa/skalfa-component"] = `${devPathPrefix}skalfa-component`;
+    pkg.dependencies["@skalfa/skalfa-app-core"] = isDev ? `${devPathPrefix}skalfa-app-core` : (v?.appCore ?? "^1.0.8");
+    if (pkg.dependencies["@skalfa/skalfa-component"]) {
+      pkg.dependencies["@skalfa/skalfa-component"] = isDev ? `${devPathPrefix}skalfa-component` : (v?.component ?? "^1.0.0");
     }
 
     // A. IndexedDB Option
     if (opts.idb) {
-      pkg.dependencies["@skalfa/skalfa-idb"] = isDev ? `${devPathPrefix}skalfa-idb` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-idb"] = isDev ? `${devPathPrefix}skalfa-idb` : (v?.idb ?? "^1.0.0");
     } else {
       // Delete schema directory
       const schemaDir = path.join(target, "schema");
@@ -307,7 +315,7 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
 
     // C. Document Option
     if (opts.document) {
-      pkg.dependencies["@skalfa/skalfa-document"] = isDev ? `${devPathPrefix}skalfa-document` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-document"] = isDev ? `${devPathPrefix}skalfa-document` : (v?.document ?? "^1.0.0");
       pkg.dependencies["exceljs"] = "^4.4.0";
       pkg.dependencies["pdf-lib"] = "^1.17.1";
       pkg.dependencies["pdfjs-dist"] = "^4.4.168";

@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import readline from "node:readline";
-import { fetchLatestTarballUrl, downloadTarball } from "../utils/npm";
+import { fetchLatestTarballUrl, downloadTarball, fetchLatestVersion } from "../utils/npm";
 import { installDependenciesAsync } from "../utils/installer";
 import { Spinner } from "../utils/spinner";
 import {
@@ -91,7 +91,41 @@ export async function createApi(projectName: string, options?: CreateApiOptions)
   const spinner = new Spinner("Preparing project...");
   spinner.start();
 
+  let ormVersion = "^1.0.7";
+  let apiCoreVersion = "^1.0.12";
+  let redisVersion = "^1.0.0";
+  let queueVersion = "^1.0.7";
+  let cacheVersion = "^1.0.0";
+  let cronVersion = "^1.0.7";
+  let daVersion = "^1.0.0";
+  let socketVersion = "^1.0.8";
+
+  const isDev = !!process.env[TEMPLATE_ENV_KEY];
+
   try {
+    if (!isDev) {
+      spinner.update("Fetching latest library versions from npm...");
+      const packages = [
+        { name: "@skalfa/skalfa-orm", set: (v: string) => ormVersion = `^${v}` },
+        { name: "@skalfa/skalfa-api-core", set: (v: string) => apiCoreVersion = `^${v}` },
+        { name: "@skalfa/skalfa-redis", set: (v: string) => redisVersion = `^${v}` },
+        { name: "@skalfa/skalfa-queue", set: (v: string) => queueVersion = `^${v}` },
+        { name: "@skalfa/skalfa-cache", set: (v: string) => cacheVersion = `^${v}` },
+        { name: "@skalfa/skalfa-cron", set: (v: string) => cronVersion = `^${v}` },
+        { name: "@skalfa/skalfa-da", set: (v: string) => daVersion = `^${v}` },
+        { name: "@skalfa/skalfa-socket", set: (v: string) => socketVersion = `^${v}` },
+      ];
+      await Promise.all(
+        packages.map(async (pkg) => {
+          try {
+            const v = await fetchLatestVersion(pkg.name);
+            pkg.set(v);
+          } catch {
+            // Keep fallback
+          }
+        })
+      );
+    }
     const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
 
     if (envTemplateSource) {
@@ -222,7 +256,17 @@ If you are an AI coding agent assisting with this project, please make sure to r
       cron: hasCron,
       da: hasDa,
       socket: hasSocket,
-      authType: authType
+      authType: authType,
+      versions: {
+        orm: ormVersion,
+        apiCore: apiCoreVersion,
+        redis: redisVersion,
+        queue: queueVersion,
+        cache: cacheVersion,
+        cron: cronVersion,
+        da: daVersion,
+        socket: socketVersion
+      }
     });
     
     spinner.update("Installing dependencies (this may take a moment)...");
@@ -257,6 +301,16 @@ interface CustomizationOptions {
   da: boolean;
   socket: boolean;
   authType: "username" | "email";
+  versions?: {
+    orm: string;
+    apiCore: string;
+    redis: string;
+    queue: string;
+    cache: string;
+    cron: string;
+    da: string;
+    socket: string;
+  };
 }
 
 function customizeProject(target: string, opts: CustomizationOptions): void {
@@ -275,37 +329,37 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     const isMonorepo = path.basename(target) === "api" || path.basename(target) === "app";
     const devPathPrefix = isMonorepo ? "file:../../" : "file:../";
 
+    const v = opts.versions;
+
     // Base ORM integration (always included)
-    pkg.dependencies["@skalfa/skalfa-orm"] = isDev ? `${devPathPrefix}skalfa-orm` : "^1.0.0";
-    if (isDev) {
-      pkg.dependencies["@skalfa/skalfa-api-core"] = `${devPathPrefix}skalfa-api-core`;
-    }
+    pkg.dependencies["@skalfa/skalfa-orm"] = isDev ? `${devPathPrefix}skalfa-orm` : (v?.orm ?? "^1.0.7");
+    pkg.dependencies["@skalfa/skalfa-api-core"] = isDev ? `${devPathPrefix}skalfa-api-core` : (v?.apiCore ?? "^1.0.12");
 
     const devCommands = ["bun run --watch app/app.ts", "bun skalfa watch:barrels"];
 
     if (opts.redis) {
-      pkg.dependencies["@skalfa/skalfa-redis"] = isDev ? `${devPathPrefix}skalfa-redis` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-redis"] = isDev ? `${devPathPrefix}skalfa-redis` : (v?.redis ?? "^1.0.0");
       pkg.dependencies["ioredis"] = "^5.4.1";
     }
     if (opts.queue) {
-      pkg.dependencies["@skalfa/skalfa-queue"] = isDev ? `${devPathPrefix}skalfa-queue` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-queue"] = isDev ? `${devPathPrefix}skalfa-queue` : (v?.queue ?? "^1.0.7");
       pkg.scripts["start:queue"] = "bun run app/jobs/queues/worker.queue.ts";
       devCommands.push("bun start:queue");
     }
     if (opts.cache) {
-      pkg.dependencies["@skalfa/skalfa-cache"] = isDev ? `${devPathPrefix}skalfa-cache` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-cache"] = isDev ? `${devPathPrefix}skalfa-cache` : (v?.cache ?? "^1.0.0");
     }
     if (opts.cron) {
-      pkg.dependencies["@skalfa/skalfa-cron"] = isDev ? `${devPathPrefix}skalfa-cron` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-cron"] = isDev ? `${devPathPrefix}skalfa-cron` : (v?.cron ?? "^1.0.7");
       pkg.scripts["start:cron"] = "bun run app/jobs/crons/worker.cron.ts";
       devCommands.push("bun start:cron");
     }
     if (opts.da) {
-      pkg.dependencies["@skalfa/skalfa-da"] = isDev ? `${devPathPrefix}skalfa-da` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-da"] = isDev ? `${devPathPrefix}skalfa-da` : (v?.da ?? "^1.0.0");
       pkg.dependencies["@clickhouse/client"] = "^1.6.0";
     }
     if (opts.socket) {
-      pkg.dependencies["@skalfa/skalfa-socket"] = isDev ? `${devPathPrefix}skalfa-socket` : "^1.0.0";
+      pkg.dependencies["@skalfa/skalfa-socket"] = isDev ? `${devPathPrefix}skalfa-socket` : (v?.socket ?? "^1.0.8");
       pkg.dependencies["socket.io"] = "^4.7.5";
       pkg.scripts["start:socket"] = "bun run app/jobs/sockets/worker.socket.ts";
       devCommands.push("bun start:socket");
