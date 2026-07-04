@@ -312,7 +312,7 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     }
 
     // Update dev script with concurrently
-    pkg.scripts["dev"] = `concurrently --raw ${devCommands.map(cmd => `\\"${cmd}\\"`).join(" ")}`;
+    pkg.scripts["dev"] = `concurrently --raw ${devCommands.map(cmd => `'${cmd}'`).join(" ")}`;
 
     fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2), "utf8");
   }

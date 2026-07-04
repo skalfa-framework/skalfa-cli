@@ -594,10 +594,10 @@ async function scaffoldUtilityExtension(projectRoot: string, ext: string): Promi
         if (devScript.includes("concurrently")) {
           if (!devScript.includes(runCmd)) {
             const cleanDev = devScript.trim();
-            pkg.scripts["dev"] = `${cleanDev} "${runCmd}"`;
+            pkg.scripts["dev"] = `${cleanDev} '${runCmd}'`;
           }
         } else {
-          pkg.scripts["dev"] = `concurrently --raw "bun run --watch app/app.ts" "bun skalfa watch:barrels" "${runCmd}"`;
+          pkg.scripts["dev"] = `concurrently --raw 'bun run --watch app/app.ts' 'bun skalfa watch:barrels' '${runCmd}'`;
         }
       }
 
