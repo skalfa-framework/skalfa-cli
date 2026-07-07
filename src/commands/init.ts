@@ -42,8 +42,8 @@ export async function initProject(projectName?: string, options?: InitOptions): 
   assertInsideDirectory(cwd, target);
 
   if (isCurrentDir) {
-    if (exists(path.join(target, "api")) || exists(path.join(target, "app")) || exists(path.join(target, "package.json"))) {
-      throw new Error(`Current directory already contains conflicting files/folders (api, app, or package.json).`);
+    if (exists(path.join(target, "api")) || exists(path.join(target, "app"))) {
+      throw new Error(`Current directory already contains conflicting files/folders (api or app).`);
     }
   } else {
     if (exists(target)) {
@@ -142,31 +142,10 @@ export async function initProject(projectName?: string, options?: InitOptions): 
 
   console.log("\nConfiguring root files...");
   
-  // 1. Root package.json
-  const rootPackageJson = {
-    name: resolvedProjectName,
-    private: true,
-    workspaces: [
-      "api",
-      "app"
-    ]
-  };
-  fs.writeFileSync(
-    path.join(target, "package.json"),
-    JSON.stringify(rootPackageJson, null, 2),
-    "utf8"
-  );
-
-  // 2. Root .gitignore
-  const rootGitignore = `node_modules/
-.agents/
-`;
-  fs.writeFileSync(path.join(target, ".gitignore"), rootGitignore, "utf8");
-
-  // 3. Root README.md
+  // 1. Root README.md
   const rootReadme = `# ${resolvedProjectName}
 
-This is a Skalfa monorepo project containing both the backend (API) and the frontend (App).
+This is a Skalfa project containing both the backend (API) and the frontend (App).
 
 ## Structure
 - \`api/\` - Backend service (Elysia, Knex, etc.)
@@ -174,12 +153,16 @@ This is a Skalfa monorepo project containing both the backend (API) and the fron
 
 ## Getting Started
 
-To install dependencies for both projects:
+To install dependencies for each project:
 \`\`\`bash
-bun install
+# Install backend dependencies
+cd api && bun install
+
+# Install frontend dependencies
+cd ../app && bun install
 \`\`\`
 
-To run the development servers:
+## Running the development servers
 - **API**: \`cd api && bun run dev\`
 - **App**: \`cd app && bun run dev\`
 `;
@@ -220,8 +203,8 @@ This is a combined Skalfa project containing both the backend (\`api\`) and fron
 
   console.log(`\nSuccessfully initialized ${resolvedProjectName}!`);
   if (isCurrentDir) {
-    console.log(`\nNext steps:\n  bun install\n  bun run --cwd api dev (or cd api && bun run dev)\n  bun run --cwd app dev (or cd app && bun run dev)`);
+    console.log(`\nNext steps:\n  cd api && bun install && bun run dev\n  cd ../app && bun install && bun run dev`);
   } else {
-    console.log(`\nNext steps:\n  cd ${projectName}\n  bun install\n  bun run --cwd api dev (or cd api && bun run dev)\n  bun run --cwd app dev (or cd app && bun run dev)`);
+    console.log(`\nNext steps:\n  cd ${projectName}\n  cd api && bun install && bun run dev\n  cd ../app && bun install && bun run dev`);
   }
 }
