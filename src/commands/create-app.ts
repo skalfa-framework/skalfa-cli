@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import readline from "node:readline";
-import { fetchLatestTarballUrl, downloadTarball } from "../utils/npm";
+import { fetchLatestTarballUrl, downloadTarball, fetchLatestVersion } from "../utils/npm";
 import { installDependenciesAsync } from "../utils/installer";
 import { Spinner } from "../utils/spinner";
 import {
@@ -90,6 +90,7 @@ export async function createApp(projectName: string, options?: CreateAppOptions)
 
   try {
     const envTemplateSource = process.env[TEMPLATE_ENV_KEY];
+    const isDev = !!envTemplateSource;
 
     if (envTemplateSource) {
       // Local copy mode
@@ -266,6 +267,32 @@ app/*.d.ts
       fs.writeFileSync(gitignorePath, defaultGitignore, "utf8");
     }
 
+    let versions: CustomizationOptions["versions"] = undefined;
+    if (!isDev) {
+      spinner.update("Fetching latest package versions...");
+      try {
+        const [appCore, component, idb, document] = await Promise.all([
+          fetchLatestVersion("@skalfa/skalfa-app-core").catch(() => "1.0.12"),
+          fetchLatestVersion("@skalfa/skalfa-component").catch(() => "1.0.6"),
+          fetchLatestVersion("@skalfa/skalfa-idb").catch(() => "1.0.0"),
+          fetchLatestVersion("@skalfa/skalfa-document").catch(() => "1.0.0"),
+        ]);
+        versions = {
+          appCore: `^${appCore}`,
+          component: `^${component}`,
+          idb: `^${idb}`,
+          document: `^${document}`,
+        };
+      } catch (err) {
+        versions = {
+          appCore: "^1.0.12",
+          component: "^1.0.6",
+          idb: "^1.0.0",
+          document: "^1.0.0",
+        };
+      }
+    }
+
     // Customize project with selected options
     customizeProject(target, {
       idb: hasIdb,
@@ -274,7 +301,8 @@ app/*.d.ts
       pwa: hasPwa,
       tauriDesktop: hasTauriDesktop,
       tauriMobile: hasTauriMobile,
-      authType: authType
+      authType: authType,
+      versions
     });
     
     spinner.update("Installing dependencies (this may take a moment)...");
@@ -334,9 +362,9 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     const v = opts.versions;
 
     // Core dependency
-    pkg.dependencies["@skalfa/skalfa-app-core"] = isDev ? `${devPathPrefix}skalfa-app-core` : (v?.appCore ?? "^1.0.8");
+    pkg.dependencies["@skalfa/skalfa-app-core"] = isDev ? `${devPathPrefix}skalfa-app-core` : (v?.appCore ?? "^1.0.12");
     if (pkg.dependencies["@skalfa/skalfa-component"]) {
-      pkg.dependencies["@skalfa/skalfa-component"] = isDev ? `${devPathPrefix}skalfa-component` : (v?.component ?? "^1.0.0");
+      pkg.dependencies["@skalfa/skalfa-component"] = isDev ? `${devPathPrefix}skalfa-component` : (v?.component ?? "^1.0.6");
     }
 
     // A. IndexedDB Option

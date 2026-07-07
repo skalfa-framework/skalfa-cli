@@ -1,6 +1,6 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Command Line Interface tool for Skalfa Framework Ecosystem, installation and managing utilities.",
   "license": "MIT",
   "keywords": ["skalfa", "skalfa-cli", "bun-framework"],
