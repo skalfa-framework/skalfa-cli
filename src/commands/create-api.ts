@@ -248,6 +248,55 @@ If you are an AI coding agent assisting with this project, please make sure to r
       fs.renameSync(npmignorePath, gitignorePath);
     }
 
+    // Ensure .gitignore has content (fallback if npm excluded it)
+    if (!fs.existsSync(gitignorePath) || fs.readFileSync(gitignorePath, "utf8").trim() === "") {
+      const defaultGitignore = `# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+package-lock.json
+bun.lock
+
+# test
+/test
+/coverage
+
+# production
+/build
+/dist
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# bundle
+**/*.trace
+**/*.zip
+**/*.tar.gz
+**/*.tgz
+**/*.log
+**/*.bun
+*.pem
+.DS_Store
+
+# env
+.env
+.env.local
+.env.dev
+.env.production
+
+# ide
+.vscode
+
+# storage
+/storage
+`;
+      fs.writeFileSync(gitignorePath, defaultGitignore, "utf8");
+    }
+
     // Customize project with selected options
     customizeProject(target, {
       redis: finalRedis,

@@ -1,27 +1,20 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.16",
-  "description": "Command Line Interface tool for scaffolding Skalfa projects, managing extensions, and ejecting core utilities.",
+  "version": "1.0.17",
+  "description": "Command Line Interface tool for Skalfa Framework Ecosystem, installation and managing utilities.",
+  "license": "MIT",
+  "keywords": ["skalfa", "skalfa-cli", "bun-framework"],
   "main": "dist/bin/skalfa.js",
   "bin": {
     "skalfa": "./dist/bin/skalfa.js"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node ./dist/bin/skalfa.js",
     "check": "npm run build && node ./dist/bin/skalfa.js --help",
     "prepare": "npm run build"
   },
-  "keywords": [
-    "aluna",
-    "cli",
-    "scaffold"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "commander": "^12.1.0"
   },
