@@ -488,82 +488,62 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
   }
 
   // 6. Handle authentication type customization
-  if (opts.authType === "username") {
-    // A. Modify app/auth/login/page.tsx
-    const loginPagePath = path.join(target, "app", "auth", "login", "page.tsx");
-    if (fs.existsSync(loginPagePath)) {
-      let content = fs.readFileSync(loginPagePath, "utf8");
-      
-      // Replace email field with username field
-      content = content.replace(
-        /\{\s*construction:\s*\{\s*name:\s*["']email["'],\s*label:\s*["']E-mail["'],\s*placeholder:\s*["']Ex:\s*example@mail\.com["'],\s*validations:\s*["']required\|min:10\|max:50\|email["']\s*\}\s*\}/g,
-        `{\n                construction: {\n                  name: "username",\n                  label: "Username",\n                  placeholder: "Ex: joko.gunawan",\n                  validations: "required|min:3|max:50"\n                }\n              }`
-      );
-      
-      // Remove Create Account link in login page
-      content = content.replace(
-        /<p className="mt-4 text-center">Don&apos;t have an account yet\? <Link href="\/auth\/register" className="text-primary underline">Create Account<\/Link><\/p>/g,
-        ''
-      );
-      
-      fs.writeFileSync(loginPagePath, content, "utf8");
-    }
+  if (opts.authType === "email") {
+    const stubsDir = path.join(__dirname, "..", "stubs", "auth-email");
+    const pagesStubDir = path.join(stubsDir, "page");
 
-    // B. Modify app/auth/edit/page.tsx
-    const editPagePath = path.join(target, "app", "auth", "edit", "page.tsx");
-    if (fs.existsSync(editPagePath)) {
-      let content = fs.readFileSync(editPagePath, "utf8");
-      
-      // Replace email field with username field
-      content = content.replace(
-        /\{\s*construction:\s*\{\s*name:\s*["']email["'],\s*label:\s*["']E-mail["'],\s*placeholder:\s*["']Ex:\s*example@mail\.com["'],\s*\}\s*\}/g,
-        `{\n                construction: {\n                  name: "username",\n                  label: "Username",\n                  placeholder: "Ex: joko.gunawan",\n                }\n              }`
-      );
-      
-      fs.writeFileSync(editPagePath, content, "utf8");
-    }
+    if (fs.existsSync(pagesStubDir)) {
+      // A. Overwrite app/auth/login/page.tsx
+      const loginStubPath = path.join(pagesStubDir, "login", "page.stub");
+      if (fs.existsSync(loginStubPath)) {
+        const loginPageDir = path.join(target, "app", "auth", "login");
+        fs.mkdirSync(loginPageDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(loginPageDir, "page.tsx"),
+          fs.readFileSync(loginStubPath, "utf8"),
+          "utf8"
+        );
+      }
 
-    // C. Modify app/auth/me/page.tsx
-    const mePagePath = path.join(target, "app", "auth", "me", "page.tsx");
-    if (fs.existsSync(mePagePath)) {
-      let content = fs.readFileSync(mePagePath, "utf8");
-      
-      // Replace email display with username
-      content = content.replace(
-        /<div>\s*<p className="text-xs font-semibold text-light-foreground">\s*Email\s*<\/p>\s*<p>\{user\?\.email\}<\/p>\s*<\/div>/g,
-        `<div>\n                <p className="text-xs font-semibold text-light-foreground">\n                  Username\n                </p>\n                <p>{user?.username}</p>\n              </div>`
-      );
-      
-      fs.writeFileSync(mePagePath, content, "utf8");
-    }
+      // B. Create app/auth/register/page.tsx
+      const registerStubPath = path.join(pagesStubDir, "register", "page.stub");
+      if (fs.existsSync(registerStubPath)) {
+        const registerPageDir = path.join(target, "app", "auth", "register");
+        fs.mkdirSync(registerPageDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(registerPageDir, "page.tsx"),
+          fs.readFileSync(registerStubPath, "utf8"),
+          "utf8"
+        );
+      }
 
-    // D. Modify app/dashboard/user/page.tsx
-    const userPagePath = path.join(target, "app", "dashboard", "user", "page.tsx");
-    if (fs.existsSync(userPagePath)) {
-      let content = fs.readFileSync(userPagePath, "utf8");
-      
-      // Replace table column for email
-      content = content.replace(
-        /\{\s*selector:\s*["']email["'],\s*label:\s*["']Email["'],\s*sortable:\s*true,\s*width:\s*["']250px["'],\s*\}/g,
-        `{\n            selector: "username",\n            label: "Username",\n            sortable: true,\n            width: "250px",\n          }`
-      );
-      
-      // Replace detail panel for email
-      content = content.replace(
-        /\{\s*label:\s*["']Email["'],\s*item:\s*["']email["'],\s*\}/g,
-        `{\n            label: "Username",\n            item: "username",\n          }`
-      );
-      
-      // Replace form field for email
-      content = content.replace(
-        /\{\s*construction:\s*\{\s*name:\s*["']email["'],\s*label:\s*["']E-mail["'],\s*placeholder:\s*["']Ex:\s*example@mail\.com["'],\s*validations:\s*\[\s*["']required["']\s*\]\s*,\s*\}\s*,?\s*\}/g,
-        `{\n              construction: {\n                name: "username",\n                label: "Username",\n                placeholder: "Ex: joko.gunawan",\n                validations: ["required"],\n              },\n            }`
-      );
-      
-      fs.writeFileSync(userPagePath, content, "utf8");
-    }
+      // C. Create app/auth/verify/page.tsx
+      const verifyStubPath = path.join(pagesStubDir, "verify", "page.stub");
+      if (fs.existsSync(verifyStubPath)) {
+        const verifyPageDir = path.join(target, "app", "auth", "verify");
+        fs.mkdirSync(verifyPageDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(verifyPageDir, "page.tsx"),
+          fs.readFileSync(verifyStubPath, "utf8"),
+          "utf8"
+        );
+      }
 
-    // E. Delete app/auth/register and app/auth/verify folders (self-registration and verification disabled/removed)
+      // D. Overwrite app/dashboard/user/page.tsx
+      const userStubPath = path.join(pagesStubDir, "user", "page.stub");
+      if (fs.existsSync(userStubPath)) {
+        const userPageDir = path.join(target, "app", "dashboard", "user");
+        fs.mkdirSync(userPageDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(userPageDir, "page.tsx"),
+          fs.readFileSync(userStubPath, "utf8"),
+          "utf8"
+        );
+      }
+    }
+  } else if (opts.authType === "username") {
+    // If username auth, the default template is already set to username.
+    // However, we clean up the register and verify folders in case they exist by default.
     const registerDir = path.join(target, "app", "auth", "register");
     if (fs.existsSync(registerDir)) {
       fs.rmSync(registerDir, { recursive: true, force: true });

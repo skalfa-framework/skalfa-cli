@@ -1,0 +1,24 @@
+import { BelongsToMany, Field, Model } from '@utils'
+import { UserRole } from '@models'
+
+
+
+export class User extends Model {
+    @Field(["fillable", "selectable", "searchable"])
+    name!: string
+
+    @Field(["fillable", "selectable", "searchable"])
+    email!: string
+
+    @Field(["fillable"])
+    password!: string
+
+    @Field(["fillable", "selectable", "searchable"])
+    email_verification_at!: Date
+
+    // =========================>
+    // ## Relations
+    // =========================>
+    @BelongsToMany(() => UserRole)
+    user_roles!: UserRole[]
+}

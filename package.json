@@ -1,6 +1,6 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Command Line Interface tool for Skalfa Framework Ecosystem, installation and managing utilities.",
   "license": "MIT",
   "keywords": ["skalfa", "skalfa-cli", "bun-framework"],
@@ -10,7 +10,7 @@
   },
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node build-stubs.js",
     "start": "node ./dist/bin/skalfa.js",
     "check": "npm run build && node ./dist/bin/skalfa.js --help",
     "prepare": "npm run build"

@@ -1,0 +1,41 @@
+import { UserRole, User } from "@models";
+import { db, permission } from "@utils";
+import "@controllers";
+
+
+
+export default async function UserSeeder() {
+    // =========================>
+    // ## Seed the application's database
+    // =========================>
+    const accesses = permission.getAccesses();
+    const adminPermissions: string[] = [];
+
+    for (const feature of accesses) {
+        for (const access of feature.accesses) {
+            const permKey = `${feature.key}.${access.key}`;
+
+            adminPermissions.push(permKey);
+        }
+    }
+    
+    await (new UserRole).pump([
+        {"name": "Admin"},
+        {"name": "User"}
+    ])
+
+    await db("user_permissions").insert([
+        { "user_role_id": 1, permissions: JSON.stringify(adminPermissions) },
+        { "user_role_id": 2, permissions: JSON.stringify([]) }
+    ])
+
+    await (new User).pump([
+        {"name": "Admin", "email": "admin@mail.com", "password": "$2b$10$tPX5QhnM.vUEDmDpht6O4OarVyTh43NTxhkzFrNxfRijJ3uhSHcli", "email_verification_at": new Date()},
+        {"name": "User", "email": "user@mail.com", "password": "$2b$10$tPX5QhnM.vUEDmDpht6O4OarVyTh43NTxhkzFrNxfRijJ3uhSHcli", "email_verification_at": new Date()}
+    ])
+
+    await db("user_has_user_roles").insert([
+        { "user_id": 1, "user_role_id": 1 },
+        { "user_id": 2, "user_role_id": 2 }
+    ])
+}

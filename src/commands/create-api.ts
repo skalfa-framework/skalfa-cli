@@ -13,6 +13,8 @@ import {
   writeJsonFile
 } from "../utils/fs";
 import { copyTemplate } from "../utils/copier";
+import { applyStubs } from "../stubs/apply";
+
 
 const TEMPLATE_ENV_KEY = "SKALFA_API_TEMPLATE";
 
@@ -429,54 +431,18 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
   if (opts.da) addTsconfigPath(tsconfigPath, "@skalfa/skalfa-da");
   if (opts.socket) addTsconfigPath(tsconfigPath, "@skalfa/skalfa-socket");
 
-  // 3. Write exports to utils/index.ts
-  if (fs.existsSync(utilsIndexPath)) {
-    let exports = `export * from "@skalfa/skalfa-api-core";\nexport * from "@skalfa/skalfa-orm";\n`;
-    if (opts.redis) exports += `export * from "@skalfa/skalfa-redis";\n`;
-    if (opts.queue) exports += `export * from "@skalfa/skalfa-queue";\n`;
-    if (opts.cache) exports += `export * from "@skalfa/skalfa-cache";\n`;
-    if (opts.cron) exports += `export * from "@skalfa/skalfa-cron";\n`;
-    if (opts.da) exports += `export * from "@skalfa/skalfa-da";\n`;
-    if (opts.socket) exports += `export * from "@skalfa/skalfa-socket";\n`;
-    fs.writeFileSync(utilsIndexPath, exports, "utf8");
-  }
+  // 3. Apply stubs for auth, user, jobs and exports
+  applyStubs({
+    target,
+    authType: opts.authType,
+    queue: opts.queue,
+    cron: opts.cron,
+    socket: opts.socket,
+    da: opts.da,
+    redis: opts.redis,
+    cache: opts.cache,
+  });
 
-  // 4. Clean up folders/files that are not wanted
-  if (!opts.queue) {
-    const queueDir = path.join(target, "app", "jobs", "queues");
-    if (fs.existsSync(queueDir)) {
-      fs.rmSync(queueDir, { recursive: true, force: true });
-    }
-  } else {
-    cleanQueueWorkers(target, opts.da, false);
-  }
-  if (!opts.cron) {
-    const cronDir = path.join(target, "app", "jobs", "crons");
-    if (fs.existsSync(cronDir)) {
-      fs.rmSync(cronDir, { recursive: true, force: true });
-    }
-  }
-  if (!opts.socket) {
-    const socketDir = path.join(target, "app", "jobs", "sockets");
-    if (fs.existsSync(socketDir)) {
-      fs.rmSync(socketDir, { recursive: true, force: true });
-    }
-  }
-  if (!opts.da) {
-    const daDir = path.join(target, "database", "da.migrations");
-    if (fs.existsSync(daDir)) {
-      fs.rmSync(daDir, { recursive: true, force: true });
-    }
-  }
-
-  // Clean up parent jobs folder if completely empty
-  const jobsDir = path.join(target, "app", "jobs");
-  if (fs.existsSync(jobsDir)) {
-    const files = fs.readdirSync(jobsDir);
-    if (files.length === 0) {
-      fs.rmSync(jobsDir, { recursive: true, force: true });
-    }
-  }
 
   // 5. Uncomment initialization blocks and update imports in app/app.ts
   if (fs.existsSync(appTsPath)) {
@@ -512,118 +478,7 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     fs.writeFileSync(appTsPath, content, "utf8");
   }
 
-  // 6. Handle authentication type customization
-  if (opts.authType === "username") {
-    // A. Modify migration: database/migrations/0000_00/users.ts
-    const migrationDir = path.join(target, "database", "migrations", "0000_00");
-    const migrationUsersPath = path.join(migrationDir, "users.ts");
-    if (fs.existsSync(migrationUsersPath)) {
-      let content = fs.readFileSync(migrationUsersPath, "utf8");
-      
-      // Replace table.string("email").unique().notNullable() with table.string("username").unique().notNullable()
-      content = content.replace(/table\.string\("email"\)\.unique\(\)\.notNullable\(\)/g, 'table.string("username").unique().notNullable()');
-      
-      // Remove table.timestamp("email_verification_at")
-      content = content.replace(/table\.timestamp\("email_verification_at"\)\r?\n?/g, '');
-      
-      // Delete the user_mail_tokens table schema creation
-      content = content.replace(/await\s+knex\.schema\.createTable\("user_mail_tokens",\s*\((table|t)\)\s*=>\s*\{[\s\S]*?\}\)\r?\n?/g, '');
-      
-      fs.writeFileSync(migrationUsersPath, content, "utf8");
-    }
 
-    // B. Modify model: app/models/iam/user.model.ts
-    const userModelPath = path.join(target, "app", "models", "iam", "user.model.ts");
-    if (fs.existsSync(userModelPath)) {
-      let content = fs.readFileSync(userModelPath, "utf8");
-      
-      // Replace email field with username field
-      content = content.replace(/@Field\(\s*\[\s*"fillable"\s*,\s*"selectable"\s*,\s*"searchable"\s*\]\s*\)\s*\r?\n?\s*email!:\s*string/g, '@Field(["fillable", "selectable", "searchable"])\n    username!: string');
-      
-      // Remove email_verification_at field
-      content = content.replace(/@Field\(\s*\[\s*"fillable"\s*,\s*"selectable"\s*,\s*"searchable"\s*\]\s*\)\s*\r?\n?\s*email_verification_at!:\s*Date/g, '');
-      
-      fs.writeFileSync(userModelPath, content, "utf8");
-    }
-
-    // C. Modify controller: app/controllers/iam/auth.controller.ts
-    const authControllerPath = path.join(target, "app", "controllers", "iam", "auth.controller.ts");
-    if (fs.existsSync(authControllerPath)) {
-      let content = fs.readFileSync(authControllerPath, "utf8");
-      
-      // Remove import { UserMailToken } from "app/outputs/mails";
-      content = content.replace(/import\s*\{\s*UserMailToken\s*\}\s*from\s*["']app\/outputs\/mails["'];?\r?\n?/g, '');
-      
-      // Update validation and logic in login
-      content = content.replace(/email\s*:\s*["']required["'],/g, 'username     :  "required",');
-      content = content.replace(/const\s*\{\s*email\s*,\s*password\s*\}\s*=\s*c\.body/g, 'const { username, password } = c.body');
-      content = content.replace(/const user\s*=\s*await\s*User\.query\(\)\.where\("email",\s*email\)\.whereNotNull\("email_verification_at"\)\.first\(\);/g, 'const user = await User.query().where("username", username).first();');
-      content = content.replace(/if\s*\(!user\)\s*return\s*c\.responseErrorValidation\(\{\s*email\s*:\s*\[\s*["']E-mail not found!["']\s*\]\s*\}\)/g, 'if (!user) return c.responseErrorValidation({username: ["Username not found!"]})');
-      
-      // Remove register and verify methods
-      content = content.replace(/\/\/\s*=+\s*>\s*\/\/\s*## Register new account\.[\s\S]*?(?=\/\/\s*=+\s*>\s*\/\/\s*## Get logged account)/g, '');
-      
-      // Replace update method validation: email: "required" -> username: "required"
-      content = content.replace(/email\s*:\s*["']required["'],/g, 'username  :  "required",');
-      
-      fs.writeFileSync(authControllerPath, content, "utf8");
-    }
-
-    // D. Modify router: app/routes/base.routes.ts
-    const baseRoutesPath = path.join(target, "app", "routes", "base.routes.ts");
-    if (fs.existsSync(baseRoutesPath)) {
-      let content = fs.readFileSync(baseRoutesPath, "utf8");
-      // Comment out register and verify routes
-      content = content.replace(/route\.post\('\/register',\s*AuthController\.register\)/g, '// route.post(\'/register\', AuthController.register) - disabled in username auth');
-      content = content.replace(/route\.post\('\/verify',\s*AuthController\.verify\)/g, '// route.post(\'/verify\', AuthController.verify) - disabled in username auth');
-      fs.writeFileSync(baseRoutesPath, content, "utf8");
-    }
-
-    // E. Modify controller: app/controllers/iam/user.controller.ts
-    const userControllerPath = path.join(target, "app", "controllers", "iam", "user.controller.ts");
-    if (fs.existsSync(userControllerPath)) {
-      let content = fs.readFileSync(userControllerPath, "utf8");
-      // Replace validation in store: email : ["required", "email"], -> username : ["required"],
-      content = content.replace(/email\s*:\s*\[\s*["']required["']\s*,\s*["']email["']\s*\]/g, 'username : ["required"]');
-      // Replace validation in update: email  :  "required", -> username  :  "required",
-      content = content.replace(/email\s*:\s*["']required["']/g, 'username  :  "required"');
-      fs.writeFileSync(userControllerPath, content, "utf8");
-    }
-
-    // F. Modify seeder: database/seeders/user.seeder.ts
-    const userSeederPath = path.join(target, "database", "seeders", "user.seeder.ts");
-    if (fs.existsSync(userSeederPath)) {
-      let content = fs.readFileSync(userSeederPath, "utf8");
-      
-      // Seed roles: Admin and User
-      content = content.replace(/\{"name": "Petugas"\}/g, '{"name": "User"}');
-      
-      // Seed users with username instead of email
-      content = content.replace(/\{"name": "Admin", "email": "admin@skalfa.id",/g, '{"name": "Admin", "username": "admin",');
-      content = content.replace(/\{"name": "Petugas", "email": "petugas@skalfa.id",/g, '{"name": "User", "username": "user",');
-      
-      fs.writeFileSync(userSeederPath, content, "utf8");
-    }
-
-    // G. Delete app/outputs/mails folder
-    const mailsDir = path.join(target, "app", "outputs", "mails");
-    if (fs.existsSync(mailsDir)) {
-      fs.rmSync(mailsDir, { recursive: true, force: true });
-    }
-  } else {
-    // If authType === "email":
-    // Change seeder from petugas@skalfa.id to user@mail.com and admin@skalfa.id to admin@mail.com, role Petugas to User
-    const userSeederPath = path.join(target, "database", "seeders", "user.seeder.ts");
-    if (fs.existsSync(userSeederPath)) {
-      let content = fs.readFileSync(userSeederPath, "utf8");
-      content = content.replace(/\{"name": "Petugas"\}/g, '{"name": "User"}');
-      content = content.replace(/admin@skalfa.id/g, 'admin@mail.com');
-      content = content.replace(/\{"name": "Petugas", "email": "petugas@mail.com",/g, '{"name": "User", "email": "user@mail.com",');
-      content = content.replace(/\{"name": "Petugas", "email": "petugas@skalfa.id",/g, '{"name": "User", "email": "user@mail.com",');
-      content = content.replace(/petugas@skalfa.id/g, 'user@mail.com');
-      fs.writeFileSync(userSeederPath, content, "utf8");
-    }
-  }
 }
 
 function addTsconfigPath(tsconfigPath: string, packageName: string): void {
@@ -637,38 +492,4 @@ function addTsconfigPath(tsconfigPath: string, packageName: string): void {
     fs.writeFileSync(tsconfigPath, content, "utf8");
   }
 }
-
-function cleanQueueWorkers(targetDir: string, hasDa: boolean, hasNotification: boolean): void {
-  const queuesDir = path.join(targetDir, "app", "jobs", "queues");
-  const workerQueuePath = path.join(queuesDir, "worker.queue.ts");
-  if (!fs.existsSync(workerQueuePath)) return;
-
-  let content = fs.readFileSync(workerQueuePath, "utf8");
-
-  if (!hasDa) {
-    const daFiles = [
-      "access-log.queue.worker.ts",
-      "activity-log.queue.worker.ts",
-      "error-log.queue.worker.ts"
-    ];
-    for (const file of daFiles) {
-      const p = path.join(queuesDir, file);
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    }
-    content = content.replace(/import\s*\{\s*activityLogQueueWorker\s*\}\s*from\s*["']\.\/activity-log\.queue\.worker["'];?\r?\n?/g, "");
-    content = content.replace(/import\s*\{\s*accessLogQueueWorker\s*\}\s*from\s*["']\.\/access-log\.queue\.worker["'];?\r?\n?/g, "");
-    content = content.replace(/import\s*\{\s*errorLogQueueWorker\s*\}\s*from\s*["']\.\/error-log\.queue\.worker["'];?\r?\n?/g, "");
-    content = content.replace(/activityLogQueueWorker\(\)\r?\n?/g, "");
-    content = content.replace(/accessLogQueueWorker\(\)\r?\n?/g, "");
-    content = content.replace(/errorLogQueueWorker\(\)\r?\n?/g, "");
-  }
-
-  if (!hasNotification) {
-    const p = path.join(queuesDir, "notification.queue.worker.ts");
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-    content = content.replace(/import\s*\{\s*notificationQueueWorker\s*\}\s*from\s*["']\.\/notification\.queue\.worker["'];?\r?\n?/g, "");
-    content = content.replace(/notificationQueueWorker\(\)\r?\n?/g, "");
-  }
-
-  fs.writeFileSync(workerQueuePath, content, "utf8");
-}
+
