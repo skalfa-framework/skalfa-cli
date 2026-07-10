@@ -162,12 +162,24 @@ export function pickComponent(componentName: string, newName?: string): void {
   const targetFolderName = newName ? newName.charAt(0).toLowerCase() + newName.slice(1) : folderName;
   const targetFolder = path.join(componentsDir, targetFolderName);
 
-  if (fs.existsSync(targetFolder)) {
-    throw new Error(`Component folder "${targetFolderName}" already exists in components/.`);
+  const targetFileName = newName ? fileName.replace(fileBaseName, newName.endsWith("Component") ? newName.replace(/Component$/, "") : newName) : fileName;
+  const targetFilePath = path.join(targetFolder, targetFileName);
+
+  if (fs.existsSync(targetFilePath)) {
+    throw new Error(`Component file "${targetFileName}" already exists in components/${targetFolderName}/.`);
   }
 
-  console.log(`Copying component "${cleanComponentName}" from ${sourceFolder} to components/${targetFolderName} ...`);
-  fs.cpSync(sourceFolder, targetFolder, { recursive: true });
+  if (!fs.existsSync(targetFolder)) {
+    fs.mkdirSync(targetFolder, { recursive: true });
+  }
+
+  // Copy only files starting with fileBaseName (e.g. Sidebar.component.tsx, Sidebar.css, etc.)
+  const filesToCopy = fs.readdirSync(sourceFolder).filter(f => f.startsWith(fileBaseName));
+
+  console.log(`Copying component "${cleanComponentName}" files from ${sourceFolder} to components/${targetFolderName} ...`);
+  for (const file of filesToCopy) {
+    fs.copyFileSync(path.join(sourceFolder, file), path.join(targetFolder, file));
+  }
 
   let finalFileBaseName = fileBaseName;
   let finalExportedTypes = [...exportedTypes];
@@ -180,8 +192,7 @@ export function pickComponent(componentName: string, newName?: string): void {
     finalExportedTypes = exportedTypes.map(sym => sym.replace(new RegExp(fileBaseName, "g"), cleanNewName));
     finalExportedValues = exportedValues.map(sym => sym.replace(new RegExp(fileBaseName, "g"), cleanNewName));
 
-    const files = fs.readdirSync(targetFolder);
-    for (const file of files) {
+    for (const file of filesToCopy) {
       const filePath = path.join(targetFolder, file);
       if (fs.statSync(filePath).isDirectory()) continue;
 

@@ -14,11 +14,12 @@ export const extensions = {
   cron: "@skalfa/skalfa-cron",
   da: "@skalfa/skalfa-da",
   socket: "@skalfa/skalfa-socket",
-  orm: "@skalfa/skalfa-orm"
+  orm: "@skalfa/skalfa-orm",
+  lang: "@skalfa/skalfa-lang"
 } as const;
 
 export const extensionNames = Object.keys(extensions);
-export const frontendExtensions = ["idb", "socket", "document", "pwa", "tauri-desktop", "tauri-mobile"];
+export const frontendExtensions = ["idb", "socket", "document", "pwa", "tauri-desktop", "tauri-mobile", "lang"];
 
 export async function addExtension(extensionName: string): Promise<void> {
   const projectRoot = findProjectRoot(process.cwd());
@@ -233,7 +234,156 @@ export const AppSchema: DBSchema = {
         }
         fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2), "utf8");
       }
-    }
+    } else if (extensionName === "lang") {
+        console.log("Installing Skalfa Lang extension for frontend...");
+        installPackage(projectRoot, isDev ? "file:../skalfa-lang" : "@skalfa/skalfa-lang");
+
+        console.log("Scaffolding lang.config.ts...");
+        const configPath = path.join(projectRoot, "lang.config.ts");
+        if (!fs.existsSync(configPath)) {
+          const configContent = `import { defineConfig } from "@skalfa/skalfa-lang";
+
+export default defineConfig({
+  defaultLocale: "id",
+  locales: ["id", "en"],
+  frontend: {
+    global: "langs",
+    modules: "src/app/**/_langs"
+  },
+  output: "langs/.generated"
+});
+`;
+          fs.writeFileSync(configPath, configContent, "utf8");
+        }
+
+        console.log("Scaffolding sample frontend locale files...");
+        const globalLangsIdDir = path.join(projectRoot, "langs", "id");
+        const globalLangsEnDir = path.join(projectRoot, "langs", "en");
+        fs.mkdirSync(globalLangsIdDir, { recursive: true });
+        fs.mkdirSync(globalLangsEnDir, { recursive: true });
+
+        const idBase = {
+          appName: "Aplikasi Skalfa",
+          welcomeTitle: "Selamat Datang di Skalfa",
+          welcomeSubtitle: "Mulailah membangun aplikasi modern Anda",
+          modalDeleteTitle: "Yakin ingin menghapus {data}?",
+          modalDeleteDescription: "{data} yang dihapus tidak dapat dikembalikan.",
+          save: "Simpan",
+          cancel: "Batal",
+          delete: "Hapus",
+          add: "Tambah",
+          edit: "Ubah",
+          detail: "Detail",
+          print: "Cetak",
+          import: "Import",
+          export: "Export",
+          importFromExcel: "Import Dari Excel",
+          exportToExcel: "Export Ke Excel",
+          addData: "Tambah Data",
+          editData: "Ubah Data",
+          deleteData: "Menghapus Data?",
+          confirmDelete: "Yakin menghapus \"{data}\"?",
+          confirmDeleteDescription: "Yakin yang dihapus sudah benar?",
+          confirmAction: "Yakin melakukan aksi untuk data \"{data}\"?",
+          confirmActionDescription: "Yakin aksi yang dilakukan sudah benar?",
+          actionData: "{action} Data?",
+          newShortcut: "Tambah Data Baru",
+          importShortcut: "Import Data Dari Excel",
+          exportShortcut: "Export Data Ke Excel",
+          confirmTitle: "Konfirmasi",
+          confirmFormDescription: "Yakin semua data sudah benar?",
+          success: "Berhasil",
+          failed: "Gagal",
+          successDescription: "Data berhasil disimpan!",
+          failedDescription: "Data gagal disimpan, cek data dan koneksi internet lalu coba kembali!"
+        };
+
+        const enBase = {
+          appName: "Skalfa Application",
+          welcomeTitle: "Welcome to Skalfa",
+          welcomeSubtitle: "Start building your modern application",
+          modalDeleteTitle: "Are you sure you want to delete {data}?",
+          modalDeleteDescription: "Deleted {data} cannot be recovered.",
+          save: "Save",
+          cancel: "Cancel",
+          delete: "Delete",
+          add: "Add",
+          edit: "Edit",
+          detail: "Detail",
+          print: "Print",
+          import: "Import",
+          export: "Export",
+          importFromExcel: "Import From Excel",
+          exportToExcel: "Export To Excel",
+          addData: "Add Data",
+          editData: "Edit Data",
+          deleteData: "Delete Data?",
+          confirmDelete: "Are you sure you want to delete \"{data}\"?",
+          confirmDeleteDescription: "Are you sure the deleted data is correct?",
+          confirmAction: "Are you sure you want to perform the action for \"{data}\"?",
+          confirmActionDescription: "Are you sure the action is correct?",
+          actionData: "{action} Data?",
+          newShortcut: "Add New Data",
+          importShortcut: "Import Data From Excel",
+          exportShortcut: "Export Data To Excel",
+          confirmTitle: "Confirmation",
+          confirmFormDescription: "Are you sure all data is correct?",
+          success: "Success",
+          failed: "Failed",
+          successDescription: "Data saved successfully!",
+          failedDescription: "Failed to save data, please check your data and internet connection then try again!"
+        };
+
+        const idValidation = {
+          required: "Kolom ini wajib diisi!",
+          min: "Kolom harus berisi lebih dari {min} karakter!",
+          max: "Kolom harus kurang dari {max} karakter!",
+          min_max: "Kolom harus berisi antara {min} - {max} karakter!",
+          phone: "Silakan masukkan nomor telepon yang valid!",
+          url: "Silakan masukkan URL yang valid!",
+          uppercase: "Kolom harus mengandung minimal 1 huruf besar!",
+          lowercase: "Kolom harus mengandung minimal 1 huruf kecil!",
+          numeric: "Kolom harus mengandung minimal 1 angka!",
+          email: "Silakan masukkan alamat email yang valid!",
+          in: "Kolom harus berupa salah satu dari: {keywords}!",
+          not_in: "Kolom tidak boleh berupa salah satu dari: {keywords}!",
+          regex: "Silakan masukkan format yang valid!",
+          invalid_file_type: "Hanya memperbolehkan ekstensi {extension}!",
+          max_file_size: "Ukuran file maksimum {maxFileSize} Mb!"
+        };
+
+        const enValidation = {
+          required: "Please fill in this field!",
+          min: "Field must contain more than {min} characters!",
+          max: "Field must be less than {max} characters!",
+          min_max: "Field must be {min} - {max} characters!",
+          phone: "Please enter a valid mobile number!",
+          url: "Please enter a valid URL!",
+          uppercase: "Field must contain at least 1 uppercase letter!",
+          lowercase: "Field must contain at least 1 lowercase letter!",
+          numeric: "Field must contain at least 1 number!",
+          email: "Please enter a valid email address!",
+          in: "Field must be one of: {keywords}!",
+          not_in: "Field cannot be one of: {keywords}!",
+          regex: "Please enter a valid format!",
+          invalid_file_type: "Only extensions {extension} are allowed!",
+          max_file_size: "Maximum file size is {maxFileSize} Mb!"
+        };
+
+        fs.writeFileSync(path.join(globalLangsIdDir, "base.json"), JSON.stringify(idBase, null, 2), "utf8");
+        fs.writeFileSync(path.join(globalLangsEnDir, "base.json"), JSON.stringify(enBase, null, 2), "utf8");
+        fs.writeFileSync(path.join(globalLangsIdDir, "validation.json"), JSON.stringify(idValidation, null, 2), "utf8");
+        fs.writeFileSync(path.join(globalLangsEnDir, "validation.json"), JSON.stringify(enValidation, null, 2), "utf8");
+
+        const pkgPath = path.join(projectRoot, "package.json");
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+          pkg.scripts = pkg.scripts || {};
+          pkg.scripts["lang:build"] = "skalfa lang build";
+          pkg.scripts["lang:dev"] = "skalfa lang dev";
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf8");
+        }
+      }
 
     console.log(`✓ Frontend extension "${extensionName}" successfully installed and configured.`);
     return;
@@ -278,12 +428,159 @@ export const AppSchema: DBSchema = {
       installPackage(projectRoot, "ioredis");
     }
 
-    await scaffoldUtilityExtension(projectRoot, extensionName);
-  } else {
-    console.log(`Installing Skalfa extension: ${extensionName}`);
-    installPackage(projectRoot, packageName);
-    console.log(`Installed ${packageName}`);
-  }
+      await scaffoldUtilityExtension(projectRoot, extensionName);
+    } else if (extensionName === "lang") {
+      console.log("Installing Skalfa Lang extension for backend...");
+      installPackage(projectRoot, isDev ? "file:../skalfa-lang" : "@skalfa/skalfa-lang");
+
+      console.log("Scaffolding lang.config.ts...");
+      const configPath = path.join(projectRoot, "lang.config.ts");
+      if (!fs.existsSync(configPath)) {
+        const configContent = `import { defineConfig } from "@skalfa/skalfa-lang";
+
+export default defineConfig({
+  defaultLocale: "id",
+  locales: ["id", "en"],
+  backend: {
+    path: "langs"
+  },
+  output: "langs/.generated"
+});
+`;
+        fs.writeFileSync(configPath, configContent, "utf8");
+      }
+
+      console.log("Scaffolding sample backend locale files...");
+      const langsIdDir = path.join(projectRoot, "langs", "id");
+      const langsEnDir = path.join(projectRoot, "langs", "en");
+      fs.mkdirSync(langsIdDir, { recursive: true });
+      fs.mkdirSync(langsEnDir, { recursive: true });
+
+      const idBase = {
+        appName: "Aplikasi Skalfa",
+        welcomeTitle: "Selamat Datang di Skalfa",
+        welcomeSubtitle: "Mulailah membangun aplikasi modern Anda",
+        modalDeleteTitle: "Yakin ingin menghapus {data}?",
+        modalDeleteDescription: "{data} yang dihapus tidak dapat dikembalikan.",
+        save: "Simpan",
+        cancel: "Batal",
+        delete: "Hapus",
+        add: "Tambah",
+        edit: "Ubah",
+        detail: "Detail",
+        print: "Cetak",
+        import: "Import",
+        export: "Export",
+        importFromExcel: "Import Dari Excel",
+        exportToExcel: "Export Ke Excel",
+        addData: "Tambah Data",
+        editData: "Ubah Data",
+        deleteData: "Menghapus Data?",
+        confirmDelete: "Yakin menghapus \"{data}\"?",
+        confirmDeleteDescription: "Yakin yang dihapus sudah benar?",
+        confirmAction: "Yakin melakukan aksi untuk data \"{data}\"?",
+        confirmActionDescription: "Yakin aksi yang dilakukan sudah benar?",
+        actionData: "{action} Data?",
+        newShortcut: "Tambah Data Baru",
+        importShortcut: "Import Data Dari Excel",
+        exportShortcut: "Export Data Ke Excel",
+        confirmTitle: "Konfirmasi",
+        confirmFormDescription: "Yakin semua data sudah benar?",
+        success: "Berhasil",
+        failed: "Gagal",
+        successDescription: "Data berhasil disimpan!",
+        failedDescription: "Data gagal disimpan, cek data dan koneksi internet lalu coba kembali!"
+      };
+
+      const enBase = {
+        appName: "Skalfa Application",
+        welcomeTitle: "Welcome to Skalfa",
+        welcomeSubtitle: "Start building your modern application",
+        modalDeleteTitle: "Are you sure you want to delete {data}?",
+        modalDeleteDescription: "Deleted {data} cannot be recovered.",
+        save: "Save",
+        cancel: "Cancel",
+        delete: "Delete",
+        add: "Add",
+        edit: "Edit",
+        detail: "Detail",
+        print: "Print",
+        import: "Import",
+        export: "Export",
+        importFromExcel: "Import From Excel",
+        exportToExcel: "Export To Excel",
+        addData: "Add Data",
+        editData: "Edit Data",
+        deleteData: "Delete Data?",
+        confirmDelete: "Are you sure you want to delete \"{data}\"?",
+        confirmDeleteDescription: "Are you sure the deleted data is correct?",
+        confirmAction: "Are you sure you want to perform the action for \"{data}\"?",
+        confirmActionDescription: "Are you sure the action is correct?",
+        actionData: "{action} Data?",
+        newShortcut: "Add New Data",
+        importShortcut: "Import Data From Excel",
+        exportShortcut: "Export Data To Excel",
+        confirmTitle: "Confirmation",
+        confirmFormDescription: "Are you sure all data is correct?",
+        success: "Success",
+        failed: "Failed",
+        successDescription: "Data saved successfully!",
+        failedDescription: "Failed to save data, please check your data and internet connection then try again!"
+      };
+
+      const idValidation = {
+        required: "Kolom ini wajib diisi!",
+        min: "Kolom harus berisi lebih dari {min} karakter!",
+        max: "Kolom harus kurang dari {max} karakter!",
+        min_max: "Kolom harus berisi antara {min} - {max} karakter!",
+        phone: "Silakan masukkan nomor telepon yang valid!",
+        url: "Silakan masukkan URL yang valid!",
+        uppercase: "Kolom harus mengandung minimal 1 huruf besar!",
+        lowercase: "Kolom harus mengandung minimal 1 huruf kecil!",
+        numeric: "Kolom harus mengandung minimal 1 angka!",
+        email: "Silakan masukkan alamat email yang valid!",
+        in: "Kolom harus berupa salah satu dari: {keywords}!",
+        not_in: "Kolom tidak boleh berupa salah satu dari: {keywords}!",
+        regex: "Silakan masukkan format yang valid!",
+        invalid_file_type: "Hanya memperbolehkan ekstensi {extension}!",
+        max_file_size: "Ukuran file maksimum {maxFileSize} Mb!"
+      };
+
+      const enValidation = {
+        required: "Please fill in this field!",
+        min: "Field must contain more than {min} characters!",
+        max: "Field must be less than {max} characters!",
+        min_max: "Field must be {min} - {max} characters!",
+        phone: "Please enter a valid mobile number!",
+        url: "Please enter a valid URL!",
+        uppercase: "Field must contain at least 1 uppercase letter!",
+        lowercase: "Field must contain at least 1 lowercase letter!",
+        numeric: "Field must contain at least 1 number!",
+        email: "Please enter a valid email address!",
+        in: "Field must be one of: {keywords}!",
+        not_in: "Field cannot be one of: {keywords}!",
+        regex: "Please enter a valid format!",
+        invalid_file_type: "Only extensions {extension} are allowed!",
+        max_file_size: "Maximum file size is {maxFileSize} Mb!"
+      };
+
+      fs.writeFileSync(path.join(langsIdDir, "base.json"), JSON.stringify(idBase, null, 2), "utf8");
+      fs.writeFileSync(path.join(langsEnDir, "base.json"), JSON.stringify(enBase, null, 2), "utf8");
+      fs.writeFileSync(path.join(langsIdDir, "validation.json"), JSON.stringify(idValidation, null, 2), "utf8");
+      fs.writeFileSync(path.join(langsEnDir, "validation.json"), JSON.stringify(enValidation, null, 2), "utf8");
+
+      if (fs.existsSync(packageJsonPath)) {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+        pkg.scripts = pkg.scripts || {};
+        pkg.scripts["lang:build"] = "skalfa lang build";
+        pkg.scripts["lang:dev"] = "skalfa lang dev";
+        fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2), "utf8");
+      }
+    } else {
+      console.log(`Installing Skalfa extension: ${extensionName}`);
+      installPackage(projectRoot, packageName);
+      console.log(`Installed ${packageName}`);
+    }
 }
 
 async function getTemplateSource(projectRoot: string): Promise<{ templateSource: string; cleanup: () => void }> {

@@ -12,10 +12,12 @@ import { pickUtility, pickComponent, UTILITIES } from "../commands/pick";
 import { updateCli } from "../commands/update";
 import { installAgent, updateAgent } from "../commands/agent";
 import { findProjectRoot } from "../utils/fs";
+import { runBuild, startDev } from "../commands/lang";
+import { runBuildIcon, startDevIcon } from "../commands/icon";
 
 // Dynamic routing / forwarding logic
 const args = process.argv.slice(2);
-const knownCommands = ["init", "create:api", "create:app", "add", "pick", "update", "agent:install", "agent:update"];
+const knownCommands = ["init", "create:api", "create:app", "add", "pick", "update", "agent:install", "agent:update", "lang", "icon"];
 
 if (args.length > 0 && !knownCommands.includes(args[0]) && !["-h", "--help", "-v", "--version", "help"].includes(args[0])) {
   const projectRoot = findProjectRoot(process.cwd());
@@ -133,6 +135,41 @@ program
   .description("Update the installed AI coding agent to the latest version.")
   .action(async () => {
     await runCommand(() => updateAgent());
+  });
+
+program
+  .command("lang")
+  .description("Manage and compile type-safe translation resources for @skalfa/lang.")
+  .argument("<action>", "action to perform: build, dev")
+  .option("-q, --quiet", "Run in quiet mode (suppress verbose logs)")
+  .action(async (action: string, options: { quiet?: boolean }) => {
+    if (action === "build") {
+      const success = await runBuild(process.cwd(), false, !!options.quiet);
+      if (!success) process.exit(1);
+    } else if (action === "dev") {
+      await startDev(process.cwd(), !!options.quiet);
+    } else {
+      console.error(`Unknown action "${action}". Use "build" or "dev".`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("icon")
+  .description("Manage and compile custom SVG icons for @skalfa/skalfa-icon.")
+  .argument("<action>", "action to perform: build, dev")
+  .option("-q, --quiet", "Run in quiet mode (suppress verbose logs)")
+  .action(async (action: string, options: { quiet?: boolean }) => {
+    const projectRoot = findProjectRoot(process.cwd()) || process.cwd();
+    if (action === "build") {
+      const success = await runBuildIcon(projectRoot, !!options.quiet);
+      if (!success) process.exit(1);
+    } else if (action === "dev") {
+      await startDevIcon(projectRoot, !!options.quiet);
+    } else {
+      console.error(`Unknown action "${action}". Use "build" or "dev".`);
+      process.exit(1);
+    }
   });
 
 program.parse(process.argv);

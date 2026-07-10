@@ -271,17 +271,19 @@ app/*.d.ts
     if (!isDev) {
       spinner.update("Fetching latest package versions...");
       try {
-        const [appCore, component, idb, document] = await Promise.all([
+        const [appCore, component, idb, document, icon] = await Promise.all([
           fetchLatestVersion("@skalfa/skalfa-app-core").catch(() => "1.0.12"),
           fetchLatestVersion("@skalfa/skalfa-component").catch(() => "1.0.6"),
           fetchLatestVersion("@skalfa/skalfa-idb").catch(() => "1.0.0"),
           fetchLatestVersion("@skalfa/skalfa-document").catch(() => "1.0.0"),
+          fetchLatestVersion("@skalfa/skalfa-icon").catch(() => "1.0.0"),
         ]);
         versions = {
           appCore: `^${appCore}`,
           component: `^${component}`,
           idb: `^${idb}`,
           document: `^${document}`,
+          icon: `^${icon}`,
         };
       } catch (err) {
         versions = {
@@ -289,6 +291,7 @@ app/*.d.ts
           component: "^1.0.6",
           idb: "^1.0.0",
           document: "^1.0.0",
+          icon: "^1.0.0",
         };
       }
     }
@@ -342,6 +345,7 @@ interface CustomizationOptions {
     component: string;
     idb: string;
     document: string;
+    icon: string;
   };
 }
 
@@ -365,6 +369,9 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     pkg.dependencies["@skalfa/skalfa-app-core"] = isDev ? `${devPathPrefix}skalfa-app-core` : (v?.appCore ?? "^1.0.12");
     if (pkg.dependencies["@skalfa/skalfa-component"]) {
       pkg.dependencies["@skalfa/skalfa-component"] = isDev ? `${devPathPrefix}skalfa-component` : (v?.component ?? "^1.0.6");
+    }
+    if (pkg.dependencies["@skalfa/skalfa-icon"]) {
+      pkg.dependencies["@skalfa/skalfa-icon"] = isDev ? `${devPathPrefix}skalfa-icon` : (v?.icon ?? "^1.0.0");
     }
 
     // A. IndexedDB Option
@@ -485,6 +492,26 @@ function customizeProject(target: string, opts: CustomizationOptions): void {
     }
 
     fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2), "utf8");
+  }
+
+  // 5. Clean up tsconfig.json and next.config.ts for production templates (non-monorepo dev)
+  const tsconfigTemplatePath = path.join(target, "tsconfig.template.json");
+  const nextConfigTemplatePath = path.join(target, "next.config.template.ts");
+
+  if (!isDev) {
+    if (fs.existsSync(tsconfigTemplatePath)) {
+      fs.renameSync(tsconfigTemplatePath, path.join(target, "tsconfig.json"));
+    }
+    if (fs.existsSync(nextConfigTemplatePath)) {
+      fs.renameSync(nextConfigTemplatePath, path.join(target, "next.config.ts"));
+    }
+  } else {
+    if (fs.existsSync(tsconfigTemplatePath)) {
+      fs.unlinkSync(tsconfigTemplatePath);
+    }
+    if (fs.existsSync(nextConfigTemplatePath)) {
+      fs.unlinkSync(nextConfigTemplatePath);
+    }
   }
 
   // 6. Handle authentication type customization

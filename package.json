@@ -1,6 +1,6 @@
 {
   "name": "@skalfa/skalfa-cli",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Command Line Interface tool for Skalfa Framework Ecosystem, installation and managing utilities.",
   "license": "MIT",
   "keywords": ["skalfa", "skalfa-cli", "bun-framework"],
@@ -16,6 +16,7 @@
     "prepare": "npm run build"
   },
   "dependencies": {
+    "@skalfa/skalfa-lang": "file:../skalfa-lang",
     "commander": "^12.1.0"
   },
   "devDependencies": {
