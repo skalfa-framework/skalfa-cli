@@ -29,7 +29,15 @@ export async function loadConfig(projectRoot: string): Promise<LangConfig> {
       const config = imported.default || imported;
       return { ...DEFAULT_CONFIG, ...config };
     } catch (err) {
-      console.warn(`[skalfa-lang] Warning: Failed to load config from ${configPath} dynamically. Using default configurations.`);
+      try {
+        const { execSync } = require("node:child_process");
+        const escapedPath = configPath.replace(/\\/g, "/");
+        const stdout = execSync(`bun -e "import config from '${escapedPath}'; console.log(JSON.stringify(config))"`, { stdio: "pipe" }).toString();
+        const config = JSON.parse(stdout);
+        return { ...DEFAULT_CONFIG, ...config };
+      } catch (bunErr) {
+        console.warn(`[skalfa-lang] Warning: Failed to load config from ${configPath} dynamically. Using default configurations.`);
+      }
     }
   }
 
