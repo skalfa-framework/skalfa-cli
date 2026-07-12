@@ -213,6 +213,8 @@ If you are an AI coding agent assisting with this project, please make sure to r
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+package-lock.json
+bun.lock
 
 # testing
 /test
