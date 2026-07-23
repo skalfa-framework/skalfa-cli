@@ -18,8 +18,8 @@ export const extensions = {
   lang: "@skalfa/skalfa-lang"
 } as const;
 
-export const extensionNames = Object.keys(extensions);
-export const frontendExtensions = ["idb", "socket", "document", "pwa", "tauri-desktop", "tauri-mobile", "lang"];
+export const frontendExtensions = ["idb", "socket", "document", "pwa", "tauri-desktop", "tauri-mobile", "lang", "printer", "odb"];
+export const extensionNames = Array.from(new Set([...Object.keys(extensions), ...frontendExtensions]));
 
 export async function addExtension(extensionName: string): Promise<void> {
   const projectRoot = findProjectRoot(process.cwd());
@@ -383,6 +383,21 @@ export default defineConfig({
           pkg.scripts["lang:dev"] = "skalfa lang dev";
           fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf8");
         }
+      } else if (extensionName === "printer" || extensionName === "odb") {
+        const extensionTitle = extensionName === "printer" ? "Printer" : "ODB";
+        const packageName = extensionName === "printer" ? "@skalfa/skalfa-printer" : "@skalfa/skalfa-odb";
+        const localPath = extensionName === "printer" ? "file:../skalfa-printer" : "file:../skalfa-odb";
+
+        const tauriDest = path.join(projectRoot, "src-tauri");
+        if (!fs.existsSync(tauriDest)) {
+          console.log(`Extension "${extensionName}" requires Tauri. Automatically installing tauri-desktop extension first...`);
+          await addExtension("tauri-desktop");
+        }
+
+        console.log(`Installing Skalfa ${extensionTitle} extension...`);
+        installPackage(projectRoot, isDev ? localPath : packageName);
+        addTsconfigPath(path.join(projectRoot, "tsconfig.json"), packageName);
+        addUtilExport(path.join(projectRoot, "utils", "index.ts"), packageName);
       }
 
     console.log(`✓ Frontend extension "${extensionName}" successfully installed and configured.`);
