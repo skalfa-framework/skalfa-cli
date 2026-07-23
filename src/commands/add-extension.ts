@@ -398,6 +398,37 @@ export default defineConfig({
         installPackage(projectRoot, isDev ? localPath : packageName);
         addTsconfigPath(path.join(projectRoot, "tsconfig.json"), packageName);
         addUtilExport(path.join(projectRoot, "utils", "index.ts"), packageName);
+
+        // Update src-tauri/Cargo.toml
+        const tauriCargoPath = path.join(projectRoot, "src-tauri", "Cargo.toml");
+        if (fs.existsSync(tauriCargoPath)) {
+          let cargoContent = fs.readFileSync(tauriCargoPath, "utf8");
+          const pluginCrateName = extensionName === "printer" ? "tauri-plugin-skalfa-printer" : "tauri-plugin-skalfa-odb";
+          const pluginPath = isDev
+            ? (extensionName === "printer" ? "../../skalfa-printer/src-rust" : "../../skalfa-odb/src-rust")
+            : (extensionName === "printer" ? "../node_modules/@skalfa/skalfa-printer/src-rust" : "../node_modules/@skalfa/skalfa-odb/src-rust");
+          
+          if (!cargoContent.includes(pluginCrateName)) {
+            cargoContent += `\n${pluginCrateName} = { path = "${pluginPath}" }\n`;
+            fs.writeFileSync(tauriCargoPath, cargoContent, "utf8");
+            console.log(`Updated: ${tauriCargoPath}`);
+          }
+        }
+
+        // Update src-tauri/src/main.rs
+        const tauriMainPath = path.join(projectRoot, "src-tauri", "src", "main.rs");
+        if (fs.existsSync(tauriMainPath)) {
+          let mainContent = fs.readFileSync(tauriMainPath, "utf8");
+          const pluginFn = extensionName === "printer" ? "tauri_plugin_skalfa_printer::init()" : "tauri_plugin_skalfa_odb::init()";
+          if (!mainContent.includes(pluginFn)) {
+            mainContent = mainContent.replace(
+              /tauri::Builder::default\(\)/,
+              `tauri::Builder::default()\n        .plugin(${pluginFn})`
+            );
+            fs.writeFileSync(tauriMainPath, mainContent, "utf8");
+            console.log(`Updated: ${tauriMainPath}`);
+          }
+        }
       }
 
     console.log(`✓ Frontend extension "${extensionName}" successfully installed and configured.`);
